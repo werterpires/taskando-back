@@ -1,0 +1,24 @@
+version: '3.9'
+services:
+  werperservicedocker:
+    container_name: taskando_container
+    hostname: taskando_host
+    image: mysql:8.3
+    restart: no
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=America/Sao_Paulo
+    volumes:
+      - taskando_volume:/var/lib/mysql
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_PASSWORD: ${SQL_PASS}
+      MYSQL_DATABASE: ${SQL_DB}
+      MYSQL_USER: ${SQL_USER}
+      MYSQL_ROOT_PASSWORD: ${SQL_PASS}
+volumes:
+  taskando_volume:
+    name: taskando
