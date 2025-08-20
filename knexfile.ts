@@ -3,13 +3,9 @@
 import type { Knex } from 'knex'
 import * as dotenv from 'dotenv'
 import camelcaseKeys from 'camelcase-keys'
-dotenv.config()
+import { toSnakeCase } from './src/shared/dbFunctions'
 
-function toSnakeCase(str: string): string {
-  return str
-    .replace(/([A-Z])/g, (letter) => `_${letter.toLowerCase()}`)
-    .replace(/^_/, '')
-}
+dotenv.config()
 
 const config: { [key: string]: Knex.Config } = {
   development: {
