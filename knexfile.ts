@@ -23,6 +23,20 @@ const config: { [key: string]: Knex.Config } = {
         return result.map((row) => camelcaseKeys(row, { deep: true }))
       }
       return camelcaseKeys(result, { deep: true })
+    },
+    log: {
+      warn(message) {
+        console.warn('Knex warn:', message)
+      },
+      error(message) {
+        console.error('Knex error:', message)
+      },
+      deprecate(message) {
+        console.log('Knex deprecated:', message)
+      },
+      debug(message) {
+        console.debug('Knex debug:', message)
+      }
     }
   },
 

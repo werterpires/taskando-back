@@ -63,9 +63,12 @@ export async function generateTable(knex: Knex, table: DbTable) {
     })
   }
 }
+async function hasTable(knex: Knex, name: string) {
+  return knex.schema.hasTable(toSnakeCase(name))
+}
 
 export async function dropTable(knex: Knex, table: DbTable) {
-  if (await knex.schema.hasTable(table.name)) {
+  if (await hasTable(knex, table.name)) {
     await knex.schema.dropTable(table.name)
   }
 }

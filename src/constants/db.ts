@@ -40,6 +40,121 @@ export const users: DbTable = {
   }
 }
 
+export const subscriptions: DbTable = {
+  name: 'subscriptions',
+  columns: {
+    id: {
+      name: 'subscriptionId',
+      completeName: 'subscriptions.subscriptionId',
+      type: 'number',
+      primary: true,
+      nullable: false
+    },
+    userId: {
+      name: 'userId',
+      completeName: 'subscriptions.userId',
+      type: 'number',
+      nullable: false,
+      foreignKey: {
+        table: 'users',
+        column: 'userId',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
+      }
+    },
+    plan: {
+      name: 'plan',
+      completeName: 'subscriptions.plan',
+      type: 'string',
+      length: 255,
+      nullable: false
+    },
+    startDate: {
+      name: 'startDate',
+      completeName: 'subscriptions.startDate',
+      type: 'date',
+      nullable: true
+    },
+    endDate: {
+      name: 'endDate',
+      completeName: 'subscriptions.endDate',
+      type: 'date',
+      nullable: true
+    },
+    status: {
+      name: 'status',
+      completeName: 'subscriptions.status',
+      type: 'string',
+      length: 255,
+      nullable: false
+    },
+    date: {
+      name: 'date',
+      completeName: 'subscriptions.date',
+      type: 'date',
+      nullable: false
+    }
+  }
+}
+
+export const payments: DbTable = {
+  name: 'payments',
+  columns: {
+    id: {
+      name: 'paymentId',
+      completeName: 'payments.paymentId',
+      type: 'number',
+      primary: true,
+      nullable: false
+    },
+    subscriptionId: {
+      name: 'subscriptionId',
+      completeName: 'payments.subscriptionId',
+      type: 'number',
+      nullable: false,
+      foreignKey: {
+        table: 'subscriptions',
+        column: 'subscriptionId',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
+      }
+    },
+    amount: {
+      name: 'amount',
+      completeName: 'payments.amount',
+      type: 'number',
+      nullable: false
+    },
+    date: {
+      name: 'date',
+      completeName: 'payments.date',
+      type: 'date',
+      nullable: false
+    },
+    status: {
+      name: 'status',
+      completeName: 'payments.status',
+      type: 'string',
+      length: 255,
+      nullable: false
+    },
+    paymentMethod: {
+      name: 'paymentMethod',
+      completeName: 'payments.paymentMethod',
+      type: 'string',
+      length: 255,
+      nullable: false
+    },
+    paymentCode: {
+      name: 'paymentCode',
+      completeName: 'payments.paymentCode',
+      type: 'string',
+      length: 255,
+      nullable: false
+    }
+  }
+}
+
 export const organizations: DbTable = {
   name: 'organizations',
   columns: {
@@ -561,7 +676,7 @@ export const projects: DbTable = {
       name: 'startDate',
       completeName: 'projects.startDate',
       type: 'date',
-      nullable: false
+      nullable: true
     },
     endDate: {
       name: 'endDate',
@@ -755,7 +870,7 @@ export const projectsTemplates: DbTable = {
       name: 'deadline',
       completeName: 'projectsTemplates.deadline',
       type: 'date',
-      nullable: true
+      nullable: false
     },
     organization: {
       name: 'orgId',
@@ -879,6 +994,18 @@ export const domains: DbTable = {
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       }
+    },
+    owner: {
+      name: 'ownerId',
+      completeName: 'domains.ownerId',
+      type: 'number',
+      nullable: false,
+      foreignKey: {
+        table: 'users',
+        column: 'userId',
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE'
+      }
     }
   }
 }
@@ -922,6 +1049,45 @@ export const domainMembers: DbTable = {
   }
 }
 
+export const domainTemplates: DbTable = {
+  name: 'domainTemplates',
+  columns: {
+    id: {
+      name: 'domainTemplateId',
+      completeName: 'domainTemplates.domainTemplateId',
+      type: 'number',
+      primary: true,
+      nullable: false
+    },
+    name: {
+      name: 'name',
+      completeName: 'domainTemplates.name',
+      type: 'string',
+      length: 255,
+      nullable: false
+    },
+    description: {
+      name: 'description',
+      completeName: 'domainTemplates.description',
+      type: 'string',
+      length: 1000,
+      nullable: true
+    },
+    projectTemplate: {
+      name: 'projectId',
+      completeName: 'domainTemplates.projectId',
+      type: 'number',
+      nullable: true,
+      foreignKey: {
+        table: 'projects',
+        column: 'projectId',
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE'
+      }
+    }
+  }
+}
+
 export const products: DbTable = {
   name: 'products',
   columns: {
@@ -950,7 +1116,7 @@ export const products: DbTable = {
       name: 'startDate',
       completeName: 'products.startDate',
       type: 'date',
-      nullable: false
+      nullable: true
     },
     endDate: {
       name: 'endDate',
@@ -1110,7 +1276,7 @@ export const productsTemplates: DbTable = {
       name: 'startDate',
       completeName: 'productsTemplates.startDate',
       type: 'date',
-      nullable: false
+      nullable: true
     },
     endDate: {
       name: 'endDate',
@@ -1283,7 +1449,7 @@ export const processes: DbTable = {
       name: 'startDate',
       completeName: 'processes.startDate',
       type: 'date',
-      nullable: false
+      nullable: true
     },
     endDate: {
       name: 'endDate',
@@ -1399,7 +1565,7 @@ export const processes: DbTable = {
       name: 'deadline',
       completeName: 'processes.deadline',
       type: 'date',
-      nullable: true
+      nullable: false
     },
     leader: {
       name: 'leaderId',
@@ -1412,6 +1578,100 @@ export const processes: DbTable = {
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       }
+    }
+  }
+}
+
+export const phases: DbTable = {
+  name: 'phases',
+  columns: {
+    id: {
+      name: 'phaseId',
+      completeName: 'phases.phaseId',
+      type: 'number',
+      primary: true,
+      nullable: false
+    },
+    name: {
+      name: 'name',
+      completeName: 'phases.name',
+      type: 'string',
+      length: 255,
+      nullable: false
+    },
+    description: {
+      name: 'description',
+      completeName: 'phases.description',
+      type: 'string',
+      length: 1000,
+      nullable: true
+    },
+    startDate: {
+      name: 'startDate',
+      completeName: 'phases.startDate',
+      type: 'date',
+      nullable: true
+    },
+    endDate: {
+      name: 'endDate',
+      completeName: 'phases.endDate',
+      type: 'date',
+      nullable: true
+    },
+    deadline: {
+      name: 'deadline',
+      completeName: 'phases.deadline',
+      type: 'date',
+      nullable: false
+    },
+    processId: {
+      name: 'processId',
+      completeName: 'phases.processId',
+      type: 'number',
+      nullable: false,
+      foreignKey: {
+        table: 'processes',
+        column: 'processId',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
+      }
+    }
+  }
+}
+
+export const phaseMembers: DbTable = {
+  name: 'phaseMembers',
+  columns: {
+    userId: {
+      name: 'userId',
+      completeName: 'phaseMembers.userId',
+      type: 'number',
+      nullable: false,
+      foreignKey: {
+        table: 'users',
+        column: 'userId',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
+      }
+    },
+    phaseId: {
+      name: 'phaseId',
+      completeName: 'phaseMembers.phaseId',
+      type: 'number',
+      nullable: false,
+      foreignKey: {
+        table: 'phases',
+        column: 'phaseId',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
+      }
+    },
+    role: {
+      name: 'role',
+      completeName: 'phaseMembers.role',
+      type: 'string',
+      length: 100,
+      nullable: true
     }
   }
 }
@@ -1577,6 +1837,105 @@ export const processTemplates: DbTable = {
   }
 }
 
+export const phsesTemplates: DbTable = {
+  name: 'phasesTemplates',
+  columns: {
+    templateId: {
+      name: 'templateId',
+      completeName: 'phasesTemplates.templateId',
+      type: 'number',
+      primary: true,
+      nullable: false
+    },
+    name: {
+      name: 'name',
+      completeName: 'phasesTemplates.name',
+      type: 'string',
+      length: 255,
+      nullable: false
+    },
+    description: {
+      name: 'description',
+      completeName: 'phasesTemplates.description',
+      type: 'string',
+      length: 1000,
+      nullable: true
+    },
+    startDate: {
+      name: 'startDate',
+      completeName: 'phasesTemplates.startDate',
+      type: 'date',
+      nullable: true
+    },
+    endDate: {
+      name: 'endDate',
+      completeName: 'phasesTemplates.endDate',
+      type: 'date',
+      nullable: true
+    },
+    processTemplate: {
+      name: 'processTemplateId',
+      completeName: 'phasesTemplates.processTemplateId',
+      type: 'number',
+      nullable: false,
+      foreignKey: {
+        table: 'processTemplates',
+        column: 'templateId',
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE'
+      }
+    },
+    owner: {
+      name: 'ownerId',
+      completeName: 'phasesTemplates.ownerId',
+      type: 'number',
+      nullable: false,
+      foreignKey: {
+        table: 'users',
+        column: 'userId',
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE'
+      }
+    }
+  }
+}
+
+export const phasesDependencies: DbTable = {
+  name: 'phasesDependencies',
+  columns: {
+    fromPhase: {
+      name: 'fromPhaseId',
+      completeName: 'phasesDependencies.fromPhaseId',
+      type: 'number',
+      nullable: false
+    },
+    toPhase: {
+      name: 'toPhaseId',
+      completeName: 'phasesDependencies.toPhaseId',
+      type: 'number',
+      nullable: false
+    }
+  }
+}
+
+export const phasesTemplatesDependencies: DbTable = {
+  name: 'phasesTemplatesDependencies',
+  columns: {
+    fromPhaseTemplate: {
+      name: 'fromPhaseTemplateId',
+      completeName: 'phasesTemplatesDependencies.fromPhaseTemplateId',
+      type: 'number',
+      nullable: false
+    },
+    toPhaseTemplate: {
+      name: 'toPhaseTemplateId',
+      completeName: 'phasesTemplatesDependencies.toPhaseTemplateId',
+      type: 'number',
+      nullable: false
+    }
+  }
+}
+
 export const tasks: DbTable = {
   name: 'tasks',
   columns: {
@@ -1605,7 +1964,7 @@ export const tasks: DbTable = {
       name: 'startDate',
       completeName: 'tasks.startDate',
       type: 'date',
-      nullable: false
+      nullable: true
     },
     endDate: {
       name: 'endDate',
@@ -1773,6 +2132,18 @@ export const tasks: DbTable = {
       foreignKey: {
         table: 'departments',
         column: 'deptId',
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE'
+      }
+    },
+    phase: {
+      name: 'phaseId',
+      completeName: 'tasks.phaseId',
+      type: 'number',
+      nullable: true,
+      foreignKey: {
+        table: 'phases',
+        column: 'phaseId',
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       }
@@ -1888,7 +2259,7 @@ export const tasksTemplates: DbTable = {
       name: 'deadline',
       completeName: 'tasks.deadline',
       type: 'date',
-      nullable: true
+      nullable: false
     },
     status: {
       name: 'status',
@@ -1984,54 +2355,7 @@ export const tasksTemplates: DbTable = {
       nullable: true,
       default: null
     },
-    process: {
-      name: 'processId',
-      completeName: 'tasks.processId',
-      type: 'number',
-      nullable: true,
-      foreignKey: {
-        table: 'processes',
-        column: 'processId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
-    },
-    project: {
-      name: 'projectId',
-      completeName: 'tasks.projectId',
-      type: 'number',
-      nullable: true,
-      foreignKey: {
-        table: 'projects',
-        column: 'projectId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
-    },
-    domain: {
-      name: 'domainId',
-      completeName: 'tasks.domainId',
-      type: 'number',
-      nullable: true,
-      foreignKey: {
-        table: 'domains',
-        column: 'domainId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
-    },
-    product: {
-      name: 'productId',
-      completeName: 'tasks.productId',
-      type: 'number',
-      nullable: true,
-      foreignKey: {
-        table: 'products',
-        column: 'productId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
-    },
+
     team: {
       name: 'teamId',
       completeName: 'tasks.teamId',
@@ -2088,6 +2412,54 @@ export const tasksTemplates: DbTable = {
       foreignKey: {
         table: 'departments',
         column: 'deptId',
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE'
+      }
+    },
+    projectTemplate: {
+      name: 'projectTemplateId',
+      completeName: 'tasks.projectTemplateId',
+      type: 'number',
+      nullable: true,
+      foreignKey: {
+        table: 'projectsTemplates',
+        column: 'templateId',
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE'
+      }
+    },
+    productTemplate: {
+      name: 'productTemplateId',
+      completeName: 'tasks.productTemplateId',
+      type: 'number',
+      nullable: true,
+      foreignKey: {
+        table: 'productsTemplates',
+        column: 'templateId',
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE'
+      }
+    },
+    processTemplate: {
+      name: 'processTemplateId',
+      completeName: 'tasks.processTemplateId',
+      type: 'number',
+      nullable: true,
+      foreignKey: {
+        table: 'processTemplates',
+        column: 'templateId',
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE'
+      }
+    },
+    phaseTemplate: {
+      name: 'phaseTemplateId',
+      completeName: 'tasks.phaseTemplateId',
+      type: 'number',
+      nullable: true,
+      foreignKey: {
+        table: 'phasesTemplates',
+        column: 'templateId',
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       }
@@ -2173,6 +2545,8 @@ export const tasksChecklistsItems: DbTable = {
 
 export const dbTables: DbTable[] = [
   users,
+  subscriptions,
+  payments,
   organizations,
   organizationMembers,
   departments,
@@ -2191,8 +2565,13 @@ export const dbTables: DbTable[] = [
   productsTemplates,
   productMembers,
   processes,
+  phases,
+  phaseMembers,
   processMembers,
   processTemplates,
+  phsesTemplates,
+  phasesDependencies,
+  phasesTemplatesDependencies,
   tasks,
   taskMembers,
   tasksDependencies,

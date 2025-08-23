@@ -9,8 +9,6 @@ export async function up(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
-  //inverte a ordem do array de tabelas
-
   for (const table of dbTables.reverse()) {
     await dropTable(knex, table)
   }
