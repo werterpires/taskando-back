@@ -6,6 +6,8 @@ import { UtilsModuleModule } from './shared/utils-module/utils-module.module'
 import { CustomErrorHandlerService } from './shared/custom-error-handler/custom-error-handler.service'
 import { APP_FILTER, APP_GUARD } from '@nestjs/core'
 import { GlobalErrorsFilter } from './shared/custom-error-handler/global-errors.filter'
+import { UsersModule } from './users/users.module'
+import { JwtAuthGuard } from './shared/auth/guards/jwt-auth.guard'
 
 const knex = KnexModule.forRoot(
   {
@@ -53,11 +55,12 @@ const knex = KnexModule.forRoot(
 )
 
 @Module({
-  imports: [UtilsModuleModule, knex],
+  imports: [UtilsModuleModule, knex, UsersModule],
   controllers: [],
   providers: [
     CustomErrorHandlerService,
-    { provide: APP_FILTER, useClass: GlobalErrorsFilter }
+    { provide: APP_FILTER, useClass: GlobalErrorsFilter },
+    { provide: APP_GUARD, useClass: JwtAuthGuard }
   ]
 })
 export class AppModule {}

@@ -36,6 +36,13 @@ export const users: DbTable = {
       type: 'string',
       length: 100,
       nullable: true
+    },
+    inviteCode: {
+      name: 'inviteCode',
+      completeName: 'users.inviteCode',
+      type: 'string',
+      length: 255,
+      nullable: true
     }
   }
 }
