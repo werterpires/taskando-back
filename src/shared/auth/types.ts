@@ -1,20 +1,9 @@
-import { ERoles } from 'src/constants/roles.const'
-import { Term } from 'src/terms/types'
-
 export interface ValidateUser {
   userPassword: string
-  userId: number
-  userEmail: string
-  userActive: boolean
-  userName: string
-  userRoles: number[]
-}
-
-export interface UserToLogon {
-  userId: number
-  userName: string
-  userRoles: ERoles[]
-  noSignedTerms: Term[]
+  id: number
+  email: string
+  firstName: string
+  lastName: string
 }
 
 export interface UserToken {
@@ -22,11 +11,10 @@ export interface UserToken {
 }
 
 export interface UserPayload {
-  userEmail: string
+  email: string
   sub: number
-  userName: string
-  userActive: boolean
-  usersRoles: number[]
+  firstName: string
+  lastName: string
   iat?: number
   exp?: number
 }
@@ -35,18 +23,9 @@ export interface AuthRequest extends Request {
   user: ValidateUser
 }
 
-export interface Logon {
-  userId: number
-  userNameHash: string
-  cpfHash: string
-  passwordHash: string
-  signedTerms: number[]
-}
-
 export interface UserFromJwt {
-  userId: number
-  userName: string
-  userEmail: string
-  userRoles: number[]
-  userActive: boolean
+  id: number
+  firstName: string
+  lastName: string
+  email: string
 }

@@ -8,13 +8,7 @@ import {
 import { AuthRepo } from './auth.repo'
 import * as bcrypt from 'bcrypt'
 import { CustomErrors } from '../custom-error-handler/erros.enum'
-import {
-  Logon,
-  UserPayload,
-  UserToken,
-  UserToLogon,
-  ValidateUser
-} from './types'
+import { UserPayload, UserToken, ValidateUser } from './types'
 import { JwtService } from '@nestjs/jwt'
 import { EncryptionService } from '../utils-module/encryption/encryption.service'
 
@@ -30,18 +24,15 @@ export class AuthService {
     const user: ValidateUser | undefined =
       await this.authRepo.findUserByEmailForLogin(email)
 
-    if (user && user.userId > 0) {
+    if (user && user.id > 0) {
       const isPasswordValid = await bcrypt.compare(password, user.userPassword)
 
       if (!isPasswordValid) {
         throw new UnauthorizedException(CustomErrors.UNAUTHORIZED_EXCEPTION)
       }
 
-      if (!user.userActive) {
-        throw new ForbiddenException(CustomErrors.INACTIVE_USER)
-      }
-
-      user.userName = this.encryptionService.decrypt(user.userName)
+      user.firstName = this.encryptionService.decrypt(user.firstName)
+      user.lastName = this.encryptionService.decrypt(user.lastName)
 
       return {
         ...user,
@@ -52,21 +43,11 @@ export class AuthService {
   }
 
   async login(user: ValidateUser): Promise<UserToken> {
-    const notSignedPolicies = await this.authRepo.findActiveTermsNotSigned(
-      user.userRoles,
-      user.userId
-    )
-
-    const notSignedPoliciesIds = notSignedPolicies.map(
-      (policy) => policy.termId
-    )
-
     const payload: UserPayload = {
-      sub: user.userId,
-      userEmail: user.userEmail,
-      userName: user.userName,
-      userActive: user.userActive,
-      usersRoles: user.userRoles
+      sub: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName
     }
     const jwtToken = this.jwtService.sign(payload)
     return { accessToken: jwtToken }
