@@ -16,7 +16,7 @@ export class UsersHelper {
 
   makeUserFromDto(updateUserDto: UpdateUserDto) {
     return {
-      id: updateUserDto.id,
+      userId: updateUserDto.userId,
       email: updateUserDto.email,
       password: bcrypt.hashSync(updateUserDto.password, 10),
       firstName: updateUserDto.firstName,

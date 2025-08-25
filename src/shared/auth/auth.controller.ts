@@ -13,6 +13,7 @@ import { AuthService } from './auth.service'
 import { LocalAuthGuard } from './guards/local-auth.guard'
 import { AuthRequest } from './types'
 import { LoginDto } from './dtos/login.dto'
+import { IsPublic } from './decorators/is-public.decorator'
 
 @Controller('auth')
 export class AuthController {
@@ -20,8 +21,10 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(LocalAuthGuard)
+  @IsPublic()
   login(@Request() req: AuthRequest, @Body() loginDto: LoginDto) {
+    console.log('req.user', req.user)
+
     return this.authService.login(req.user)
   }
 }

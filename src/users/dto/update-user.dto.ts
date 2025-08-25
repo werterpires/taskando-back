@@ -4,5 +4,5 @@ import { IsNumber } from 'class-validator'
 
 export class UpdateUserDto extends CreateUserDto {
   @IsNumber()
-  id: number
+  userId: number
 }

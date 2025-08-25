@@ -5,9 +5,9 @@ export class CreateUserDto {
   @IsEmail({}, { message: '#Email inválido' })
   email: string
 
-  @Matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/, {
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/, {
     message:
-      '#A senha deve conter pelo menos 8 caracteres, pelo menos uma letra e pelo menos um número'
+      '#A senha deve conter pelo menos 8 caracteres, pelo menos uma letra e pelo menos um número'
   })
   password: string
 

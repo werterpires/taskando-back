@@ -22,7 +22,7 @@ export class UsersService {
     return await this.usersRepo.updateUser(user)
   }
 
-  async remove(id: number) {
-    return await this.usersRepo.removeUser(id)
+  async remove(userId: number) {
+    return await this.usersRepo.removeUser(userId)
   }
 }

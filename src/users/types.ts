@@ -6,5 +6,5 @@ export interface CreateUserData {
 }
 
 export interface User extends CreateUserData {
-  id: number
+  userId: number
 }

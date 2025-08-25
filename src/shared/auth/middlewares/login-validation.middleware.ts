@@ -12,6 +12,8 @@ export class LoginValidationMiddleware implements NestMiddleware {
     loginRequestBody.userEmail = body.userEmail
     loginRequestBody.password = body.password
 
+    console.log('loginRequestBody', loginRequestBody)
+
     const validations = await validate(loginRequestBody)
     if (validations.length > 0) {
       throw new BadRequestException(

@@ -1,6 +1,6 @@
 export interface ValidateUser {
-  userPassword: string
-  id: number
+  password: string
+  userId: number
   email: string
   firstName: string
   lastName: string
@@ -24,7 +24,7 @@ export interface AuthRequest extends Request {
 }
 
 export interface UserFromJwt {
-  id: number
+  userId: number
   firstName: string
   lastName: string
   email: string

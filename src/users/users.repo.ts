@@ -17,13 +17,13 @@ export class UsersRepo {
 
   async updateUser(user: User) {
     return await this.knex(users.name)
-      .where(this.columns.id.completeName, user.id)
+      .where(this.columns.id.completeName, user.userId)
       .update({ ...user, updated_at: new Date() })
   }
 
-  async removeUser(id: number) {
+  async removeUser(userId: number) {
     return await this.knex(users.name)
-      .where(this.columns.id.completeName, id)
+      .where(this.columns.id.completeName, userId)
       .delete()
   }
 }
