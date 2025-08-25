@@ -1,11 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { OrganizationsRepo } from './organizations.repo';
+import { OrganizationsHelper } from './organizations.helper';
 
 @Injectable()
 export class OrganizationsService {
-  create(createOrganizationDto: CreateOrganizationDto) {
-    return 'This action adds a new organization';
+  constructor(
+    private readonly organizationsRepo: OrganizationsRepo,
+    private readonly organizationsHelper: OrganizationsHelper
+  ) {}
+
+  async create(createOrganizationDto: CreateOrganizationDto) {
+    const createOrganizationData =
+      this.organizationsHelper.makeCreateOrganizationDataFromDto(createOrganizationDto)
+    return await this.organizationsRepo.createOrganization(createOrganizationData)
   }
 
   findAll() {
