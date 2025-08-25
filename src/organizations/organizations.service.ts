@@ -3,6 +3,7 @@ import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationsRepo } from './organizations.repo';
 import { OrganizationsHelper } from './organizations.helper';
+import { ValidateUser } from '../shared/auth/types';
 
 @Injectable()
 export class OrganizationsService {
@@ -11,9 +12,9 @@ export class OrganizationsService {
     private readonly organizationsHelper: OrganizationsHelper
   ) {}
 
-  async create(createOrganizationDto: CreateOrganizationDto) {
+  async create(createOrganizationDto: CreateOrganizationDto, currentUser: ValidateUser) {
     const createOrganizationData =
-      this.organizationsHelper.makeCreateOrganizationDataFromDto(createOrganizationDto)
+      this.organizationsHelper.makeCreateOrganizationDataFromDto(createOrganizationDto, currentUser)
     return await this.organizationsRepo.createOrganization(createOrganizationData)
   }
 

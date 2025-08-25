@@ -1,5 +1,5 @@
 
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Length } from 'class-validator'
+import { IsString, IsNotEmpty, IsOptional, Length } from 'class-validator'
 
 export class CreateOrganizationDto {
   @IsString()
@@ -21,8 +21,4 @@ export class CreateOrganizationDto {
   @IsString()
   @Length(1, 15)
   phone?: string
-
-  @IsNumber()
-  @IsNotEmpty()
-  ownerId: number
 }

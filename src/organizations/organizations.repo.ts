@@ -13,16 +13,4 @@ export class OrganizationsRepo {
   async createOrganization(createOrganizationData: CreateOrganizationData) {
     return await this.knex(organizations.name).insert(createOrganizationData)
   }
-
-  async updateOrganization(organization: Organization) {
-    return await this.knex(organizations.name)
-      .where(this.columns.id.completeName, organization.orgId)
-      .update({ ...organization, updated_at: new Date() })
-  }
-
-  async removeOrganization(orgId: number) {
-    return await this.knex(organizations.name)
-      .where(this.columns.id.completeName, orgId)
-      .delete()
-  }
 }
