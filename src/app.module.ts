@@ -11,6 +11,7 @@ import { JwtAuthGuard } from './shared/auth/guards/jwt-auth.guard'
 import { config } from 'dotenv'
 import { AuthModule } from './shared/auth/auth.module'
 import { LocalAuthGuard } from './shared/auth/guards/local-auth.guard'
+import { OrganizationsModule } from './organizations/organizations.module';
 
 config()
 
@@ -60,7 +61,7 @@ const knex = KnexModule.forRoot(
 )
 
 @Module({
-  imports: [UtilsModuleModule, knex, UsersModule, AuthModule],
+  imports: [UtilsModuleModule, knex, UsersModule, AuthModule, OrganizationsModule],
   controllers: [],
   providers: [
     CustomErrorHandlerService,
