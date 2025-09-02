@@ -1,4 +1,3 @@
-
 import { Injectable } from '@nestjs/common'
 import { CreateOrganizationDto } from './dto/create-organization.dto'
 import { CreateOrganizationData } from './types'
@@ -15,7 +14,7 @@ export class OrganizationsHelper {
       cnpj: createOrganizationDto.cnpj,
       address: createOrganizationDto.address,
       phone: createOrganizationDto.phone,
-      ownerId: currentUser.sub
+      ownerId: currentUser.userId
     }
   }
 }

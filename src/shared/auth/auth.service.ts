@@ -24,14 +24,8 @@ export class AuthService {
     const user: ValidateUser | undefined =
       await this.authRepo.findUserByEmailForLogin(email)
 
-    console.log('user NO VALIDATE', user)
-    console.log(user && user.userId > 0)
-
     if (user && user.userId > 0) {
-      console.log('password', password, user.password)
       const isPasswordValid = await bcrypt.compare(password, user.password)
-
-      console.log('isPasswordValid', isPasswordValid)
 
       if (!isPasswordValid) {
         throw new UnauthorizedException(CustomErrors.UNAUTHORIZED_EXCEPTION)
@@ -49,7 +43,6 @@ export class AuthService {
   }
 
   async login(user: ValidateUser): Promise<UserToken> {
-    console.log('user', user)
     const payload: UserPayload = {
       sub: user.userId,
       email: user.email,

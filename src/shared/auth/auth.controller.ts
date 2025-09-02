@@ -23,8 +23,6 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @IsPublic()
   login(@Request() req: AuthRequest, @Body() loginDto: LoginDto) {
-    console.log('req.user', req.user)
-
     return this.authService.login(req.user)
   }
 }

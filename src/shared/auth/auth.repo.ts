@@ -20,8 +20,6 @@ export class AuthRepo {
       .where(this.usersColumns.email.completeName, email)
       .first()
 
-    console.log('user 3', user)
-
     return user as ValidateUser
   }
 }
