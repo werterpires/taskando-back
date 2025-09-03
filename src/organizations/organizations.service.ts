@@ -25,4 +25,8 @@ export class OrganizationsService {
       createOrganizationData
     )
   }
+
+  async getAll(currentUser: ValidateUser) {
+    return await this.organizationsRepo.getAllByOwnerId(currentUser.userId)
+  }
 }

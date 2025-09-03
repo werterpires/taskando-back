@@ -24,4 +24,9 @@ export class OrganizationsController {
   ) {
     return this.organizationsService.create(createOrganizationDto, currentUser)
   }
+
+  @Get()
+  getAll(@CurrentUser() currentUser: ValidateUser) {
+    return this.organizationsService.getAll(currentUser)
+  }
 }
