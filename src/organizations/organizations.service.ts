@@ -4,6 +4,7 @@ import { UpdateOrganizationDto } from './dto/update-organization.dto'
 import { OrganizationsRepo } from './organizations.repo'
 import { OrganizationsHelper } from './organizations.helper'
 import { ValidateUser } from '../shared/auth/types'
+import { Paginator } from '../shared/types/paginator.types'
 
 @Injectable()
 export class OrganizationsService {
@@ -26,7 +27,10 @@ export class OrganizationsService {
     )
   }
 
-  async getAll(currentUser: ValidateUser) {
-    return await this.organizationsRepo.getAllByOwnerId(currentUser.userId)
+  async getAll(currentUser: ValidateUser, paginator: Paginator) {
+    return await this.organizationsRepo.getAllByOwnerId(
+      currentUser.userId,
+      paginator
+    )
   }
 }
