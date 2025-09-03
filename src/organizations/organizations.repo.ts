@@ -3,6 +3,7 @@ import { InjectConnection } from 'nest-knexjs'
 import { Knex } from 'knex'
 import { CreateOrganizationData, Organization } from './types'
 import { organizations } from '../constants/db'
+import { Paginator } from '../shared/types/paginator.types'
 
 @Injectable()
 export class OrganizationsRepo {
@@ -13,7 +14,7 @@ export class OrganizationsRepo {
     return await this.knex(organizations.name).insert(createOrganizationData)
   }
 
-  async getAllByOwnerId(ownerId: number): Promise<Organization[]> {
+  async getAllByOwnerId(ownerId: number, paginator: Paginator): Promise<Organization[]> {
     return (await this.knex(organizations.name)
       .select([
         this.columns.id.name,
@@ -23,6 +24,9 @@ export class OrganizationsRepo {
         this.columns.phone.name,
         this.columns.owner.name
       ])
-      .where(this.columns.owner.name, ownerId)) as Organization[]
+      .where(this.columns.owner.name, ownerId)
+      .orderBy(paginator.orderBy, paginator.direction)
+      .limit(paginator.limit)
+      .offset(paginator.offset)) as Organization[]
   }
 }
