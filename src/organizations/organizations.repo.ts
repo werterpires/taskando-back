@@ -35,6 +35,11 @@ export class OrganizationsRepo {
       .count('* as total')
       .where(this.columns.owner.name, ownerId)
       .first()
+    
+    if (!result) {
+      return 0
+    }
+    
     return parseInt(result.total as string, 10)
   }
 }
