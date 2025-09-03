@@ -29,4 +29,12 @@ export class OrganizationsRepo {
       .limit(paginator.limit)
       .offset(paginator.offset)) as Organization[]
   }
+
+  async countByOwnerId(ownerId: number): Promise<number> {
+    const result = await this.knex(organizations.name)
+      .count('* as total')
+      .where(this.columns.owner.name, ownerId)
+      .first()
+    return parseInt(result.total as string, 10)
+  }
 }

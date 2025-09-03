@@ -5,6 +5,8 @@ import { OrganizationsRepo } from './organizations.repo'
 import { OrganizationsHelper } from './organizations.helper'
 import { ValidateUser } from '../shared/auth/types'
 import { Paginator } from '../shared/types/paginator.types'
+import { Response } from '../shared/types/response.types'
+import { Organization } from './types'
 
 @Injectable()
 export class OrganizationsService {
@@ -27,10 +29,18 @@ export class OrganizationsService {
     )
   }
 
-  async getAll(currentUser: ValidateUser, paginator: Paginator) {
-    return await this.organizationsRepo.getAllByOwnerId(
+  async getAll(currentUser: ValidateUser, paginator: Paginator): Promise<Response<Organization>> {
+    const itens = await this.organizationsRepo.getAllByOwnerId(
       currentUser.userId,
       paginator
     )
+    const quantity = await this.organizationsRepo.countByOwnerId(
+      currentUser.userId
+    )
+    
+    return {
+      quantity,
+      itens
+    }
   }
 }
