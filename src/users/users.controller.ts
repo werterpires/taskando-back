@@ -6,12 +6,14 @@ import {
   Patch,
   Param,
   Delete,
-  Put
+  Put,
+  UseGuards
 } from '@nestjs/common'
 import { UsersService } from './users.service'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
 import { IsPublic } from 'src/shared/auth/decorators/is-public.decorator'
+import { LocalAuthGuard } from 'src/shared/auth/guards/local-auth.guard'
 
 @Controller('users')
 export class UsersController {
@@ -19,6 +21,7 @@ export class UsersController {
 
   @IsPublic()
   @Post()
+  @UseGuards(LocalAuthGuard)
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto)
   }
