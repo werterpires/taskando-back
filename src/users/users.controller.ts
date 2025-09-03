@@ -21,7 +21,6 @@ export class UsersController {
 
   @IsPublic()
   @Post()
-  @UseGuards(LocalAuthGuard)
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto)
   }

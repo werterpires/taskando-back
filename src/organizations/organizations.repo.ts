@@ -1,4 +1,3 @@
-
 import { Injectable } from '@nestjs/common'
 import { InjectConnection } from 'nest-knexjs'
 import { Knex } from 'knex'
@@ -14,8 +13,8 @@ export class OrganizationsRepo {
     return await this.knex(organizations.name).insert(createOrganizationData)
   }
 
-  async getAllByOwnerId(ownerId: number) {
-    return await this.knex(organizations.name)
+  async getAllByOwnerId(ownerId: number): Promise<Organization[]> {
+    return (await this.knex(organizations.name)
       .select([
         this.columns.id.name,
         this.columns.name.name,
@@ -24,6 +23,6 @@ export class OrganizationsRepo {
         this.columns.phone.name,
         this.columns.owner.name
       ])
-      .where(this.columns.owner.name, ownerId)
+      .where(this.columns.owner.name, ownerId)) as Organization[]
   }
 }
