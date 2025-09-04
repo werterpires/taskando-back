@@ -48,4 +48,12 @@ export class OrganizationsController {
   ) {
     return this.organizationsService.findOne(id, currentUser)
   }
+
+  @Put()
+  update(
+    @Body() updateOrganizationDto: UpdateOrganizationDto,
+    @CurrentUser() currentUser: ValidateUser
+  ) {
+    return this.organizationsService.update(updateOrganizationDto, currentUser)
+  }
 }

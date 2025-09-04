@@ -83,4 +83,15 @@ export class OrganizationsRepo {
       }
     } as Organization
   }
+
+  async updateOrganization(
+    orgId: number,
+    updateData: Partial<CreateOrganizationData>,
+    ownerId: number
+  ) {
+    return await this.knex(organizations.name)
+      .where(this.columns.id.name, orgId)
+      .andWhere(this.columns.owner.name, ownerId)
+      .update(updateData)
+  }
 }

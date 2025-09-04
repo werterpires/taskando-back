@@ -47,4 +47,19 @@ export class OrganizationsService {
   async findOne(orgId: number, currentUser: ValidateUser): Promise<Organization | null> {
     return await this.organizationsRepo.getById(orgId, currentUser.userId)
   }
+
+  async update(
+    updateOrganizationDto: UpdateOrganizationDto,
+    currentUser: ValidateUser
+  ) {
+    const updateOrganizationData =
+      this.organizationsHelper.makeUpdateOrganizationDataFromDto(
+        updateOrganizationDto
+      )
+    return await this.organizationsRepo.updateOrganization(
+      updateOrganizationDto.orgId,
+      updateOrganizationData,
+      currentUser.userId
+    )
+  }
 }
