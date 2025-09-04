@@ -14,7 +14,10 @@ export class OrganizationsRepo {
     return await this.knex(organizations.name).insert(createOrganizationData)
   }
 
-  async getAllByOwnerId(ownerId: number, paginator: Paginator): Promise<Organization[]> {
+  async getAllByOwnerId(
+    ownerId: number,
+    paginator: Paginator
+  ): Promise<Organization[]> {
     return (await this.knex(organizations.name)
       .select([
         this.columns.id.name,
@@ -35,11 +38,7 @@ export class OrganizationsRepo {
       .count('* as total')
       .where(this.columns.owner.name, ownerId)
       .first()
-    
-    if (!result) {
-      return 0
-    }
-    
+    if (!result) return 0
     return parseInt(result.total as string, 10)
   }
 }
