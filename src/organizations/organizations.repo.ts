@@ -41,4 +41,41 @@ export class OrganizationsRepo {
     if (!result) return 0
     return parseInt(result.total as string, 10)
   }
+
+  async getById(orgId: number, ownerId: number): Promise<Organization | null> {
+    const result = await this.knex(organizations.name)
+      .select([
+        `${organizations.name}.${this.columns.id.name}`,
+        `${organizations.name}.${this.columns.name.name}`,
+        `${organizations.name}.${this.columns.cnpj.name}`,
+        `${organizations.name}.${this.columns.address.name}`,
+        `${organizations.name}.${this.columns.phone.name}`,
+        `${organizations.name}.${this.columns.owner.name}`,
+        'users.userId as owner_userId',
+        'users.email as owner_email',
+        'users.firstName as owner_firstName',
+        'users.lastName as owner_lastName'
+      ])
+      .leftJoin('users', `${organizations.name}.${this.columns.owner.name}`, 'users.userId')
+      .where(`${organizations.name}.${this.columns.id.name}`, orgId)
+      .andWhere(`${organizations.name}.${this.columns.owner.name}`, ownerId)
+      .first()
+
+    if (!result) return null
+
+    return {
+      orgId: result.orgId,
+      name: result.name,
+      cnpj: result.cnpj,
+      address: result.address,
+      phone: result.phone,
+      ownerId: result.ownerId,
+      owner: {
+        userId: result.owner_userId,
+        email: result.owner_email,
+        firstName: result.owner_firstName,
+        lastName: result.owner_lastName
+      }
+    } as Organization
+  }
 }

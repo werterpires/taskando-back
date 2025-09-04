@@ -43,4 +43,8 @@ export class OrganizationsService {
       itens
     }
   }
+
+  async findOne(orgId: number, currentUser: ValidateUser): Promise<Organization | null> {
+    return await this.organizationsRepo.getById(orgId, currentUser.userId)
+  }
 }

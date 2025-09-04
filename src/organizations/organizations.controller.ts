@@ -40,4 +40,12 @@ export class OrganizationsController {
     const paginator: Paginator = { limit, offset, orderBy, direction }
     return this.organizationsService.getAll(currentUser, paginator)
   }
+
+  @Get(':id')
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() currentUser: ValidateUser
+  ) {
+    return this.organizationsService.findOne(id, currentUser)
+  }
 }
