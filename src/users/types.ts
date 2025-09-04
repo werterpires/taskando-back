@@ -5,6 +5,10 @@ export interface CreateUserData {
   lastName?: string
 }
 
-export interface User extends CreateUserData {
+export interface User {
   userId: number
+
+  email: string
+  firstName?: string
+  lastName?: string
 }

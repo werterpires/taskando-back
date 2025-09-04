@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common'
 import { InjectConnection } from 'nest-knexjs'
 import { Knex } from 'knex'
 import { CreateOrganizationData, Organization } from './types'
-import { organizations } from '../constants/db'
+import { organizations, users } from '../constants/db'
 import { Paginator } from '../shared/types/paginator.types'
 
 @Injectable()
 export class OrganizationsRepo {
   private columns = organizations.columns
+  private usersColumns = users.columns
   constructor(@InjectConnection('knexx') private readonly knex: Knex) {}
 
   async createOrganization(createOrganizationData: CreateOrganizationData) {
@@ -56,7 +57,11 @@ export class OrganizationsRepo {
         'users.firstName as owner_firstName',
         'users.lastName as owner_lastName'
       ])
-      .leftJoin('users', `${organizations.name}.${this.columns.owner.name}`, 'users.userId')
+      .leftJoin(
+        'users',
+        `${organizations.name}.${this.columns.owner.name}`,
+        'users.userId'
+      )
       .where(`${organizations.name}.${this.columns.id.name}`, orgId)
       .andWhere(`${organizations.name}.${this.columns.owner.name}`, ownerId)
       .first()
@@ -64,18 +69,7 @@ export class OrganizationsRepo {
     if (!result) return null
 
     return {
-      orgId: result.orgId,
-      name: result.name,
-      cnpj: result.cnpj,
-      address: result.address,
-      phone: result.phone,
-      ownerId: result.ownerId,
-      owner: {
-        userId: result.owner_userId,
-        email: result.owner_email,
-        firstName: result.owner_firstName,
-        lastName: result.owner_lastName
-      }
+      orgId: result[this.columns.id.name]
     } as Organization
   }
 }
