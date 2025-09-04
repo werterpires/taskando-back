@@ -46,30 +46,41 @@ export class OrganizationsRepo {
   async getById(orgId: number, ownerId: number): Promise<Organization | null> {
     const result = await this.knex(organizations.name)
       .select([
-        `${organizations.name}.${this.columns.id.name}`,
-        `${organizations.name}.${this.columns.name.name}`,
-        `${organizations.name}.${this.columns.cnpj.name}`,
-        `${organizations.name}.${this.columns.address.name}`,
-        `${organizations.name}.${this.columns.phone.name}`,
-        `${organizations.name}.${this.columns.owner.name}`,
-        'users.userId as owner_userId',
-        'users.email as owner_email',
-        'users.firstName as owner_firstName',
-        'users.lastName as owner_lastName'
+        this.columns.id.completeName,
+        this.columns.name.completeName,
+        this.columns.cnpj.completeName,
+        this.columns.address.completeName,
+        this.columns.phone.completeName,
+        this.columns.owner.completeName,
+        `${this.usersColumns.id.completeName} as ${this.usersColumns.id.name}`,
+        `${this.usersColumns.email.completeName} as ${this.usersColumns.email.name}`,
+        `${this.usersColumns.firstName.completeName} as ${this.usersColumns.firstName.name}`,
+        `${this.usersColumns.lastName.completeName} as ${this.usersColumns.lastName.name}`
       ])
       .leftJoin(
-        'users',
-        `${organizations.name}.${this.columns.owner.name}`,
-        'users.userId'
+        users.name,
+        this.columns.owner.completeName,
+        this.usersColumns.id.completeName
       )
-      .where(`${organizations.name}.${this.columns.id.name}`, orgId)
-      .andWhere(`${organizations.name}.${this.columns.owner.name}`, ownerId)
+      .where(this.columns.id.completeName, orgId)
+      .andWhere(this.columns.owner.completeName, ownerId)
       .first()
 
     if (!result) return null
 
     return {
-      orgId: result[this.columns.id.name]
+      orgId: result[this.columns.id.name],
+      name: result[this.columns.name.name],
+      cnpj: result[this.columns.cnpj.name],
+      address: result[this.columns.address.name],
+      phone: result[this.columns.phone.name],
+      ownerId: result[this.columns.owner.name],
+      owner: {
+        userId: result[this.usersColumns.id.name],
+        email: result[this.usersColumns.email.name],
+        firstName: result[this.usersColumns.firstName.name],
+        lastName: result[this.usersColumns.lastName.name]
+      }
     } as Organization
   }
 }
