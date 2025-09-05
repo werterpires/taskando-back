@@ -62,4 +62,8 @@ export class OrganizationsService {
       currentUser.userId
     )
   }
+
+  async remove(orgId: number, currentUser: ValidateUser) {
+    return await this.organizationsRepo.deleteOrganization(orgId, currentUser.userId)
+  }
 }

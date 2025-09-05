@@ -57,4 +57,12 @@ export class OrganizationsController {
   ) {
     return this.organizationsService.update(updateOrganizationDto, currentUser)
   }
+
+  @Delete(':id')
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() currentUser: ValidateUser
+  ) {
+    return this.organizationsService.remove(id, currentUser)
+  }
 }

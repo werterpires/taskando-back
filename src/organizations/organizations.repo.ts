@@ -94,4 +94,11 @@ export class OrganizationsRepo {
       .andWhere(this.columns.owner.name, ownerId)
       .update(updateData)
   }
+
+  async deleteOrganization(orgId: number, ownerId: number) {
+    return await this.knex(organizations.name)
+      .where(this.columns.id.name, orgId)
+      .andWhere(this.columns.owner.name, ownerId)
+      .del()
+  }
 }
