@@ -8,7 +8,8 @@ import {
   Delete,
   Query,
   ParseIntPipe,
-  DefaultValuePipe
+  DefaultValuePipe,
+  Put
 } from '@nestjs/common'
 import { OrganizationsService } from './organizations.service'
 import { CreateOrganizationDto } from './dto/create-organization.dto'
