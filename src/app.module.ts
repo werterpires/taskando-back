@@ -12,6 +12,7 @@ import { config } from 'dotenv'
 import { AuthModule } from './shared/auth/auth.module'
 import { LocalAuthGuard } from './shared/auth/guards/local-auth.guard'
 import { OrganizationsModule } from './organizations/organizations.module'
+import { OrganizationsMembersModule } from './organizations-members/organizations-members.module';
 
 config()
 
@@ -66,7 +67,8 @@ const knex = KnexModule.forRoot(
     knex,
     UsersModule,
     AuthModule,
-    OrganizationsModule
+    OrganizationsModule,
+    OrganizationsMembersModule
   ],
   controllers: [],
   providers: [
