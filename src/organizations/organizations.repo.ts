@@ -29,14 +29,19 @@ export class OrganizationsRepo {
         this.columns.phone.name,
         this.columns.owner.name
       ])
-      .where(function() {
-        this.where(organizations.columns.owner.name, userId)
-          .orWhereExists(function() {
+      .where(function () {
+        this.where(organizations.columns.owner.name, userId).orWhereExists(
+          function () {
             this.select('*')
               .from(organizationMembers.name)
-              .whereRaw(`${organizationMembers.name}.${organizationMembers.columns.orgId.name} = ${organizations.name}.${organizations.columns.id.name}`)
-              .andWhere(`${organizationMembers.name}.${organizationMembers.columns.userId.name}`, userId)
-          })
+              .innerJoin(
+                { om: organizationMembers.name },
+                organizationMembers.columns.orgId.completeName,
+                organizations.columns.id.completeName
+              )
+              .andWhere(organizationMembers.columns.userId.completeName, userId)
+          }
+        )
       })
       .orderBy(paginator.orderBy, paginator.direction)
       .limit(paginator.limit)
@@ -46,14 +51,19 @@ export class OrganizationsRepo {
   async countByOwnerIdOrMember(userId: number): Promise<number> {
     const result = await this.knex(organizations.name)
       .count('* as total')
-      .where(function() {
-        this.where(organizations.columns.owner.name, userId)
-          .orWhereExists(function() {
+      .where(function () {
+        this.where(organizations.columns.owner.name, userId).orWhereExists(
+          function () {
             this.select('*')
               .from(organizationMembers.name)
-              .whereRaw(`${organizationMembers.name}.${organizationMembers.columns.orgId.name} = ${organizations.name}.${organizations.columns.id.name}`)
-              .andWhere(`${organizationMembers.name}.${organizationMembers.columns.userId.name}`, userId)
-          })
+              .innerJoin(
+                { om: organizationMembers.name },
+                organizationMembers.columns.orgId.completeName,
+                organizations.columns.id.completeName
+              )
+              .andWhere(organizationMembers.columns.userId.completeName, userId)
+          }
+        )
       })
       .first()
     if (!result) return 0
