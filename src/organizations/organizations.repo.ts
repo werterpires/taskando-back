@@ -2,13 +2,14 @@ import { Injectable } from '@nestjs/common'
 import { InjectConnection } from 'nest-knexjs'
 import { Knex } from 'knex'
 import { CreateOrganizationData, Organization } from './types'
-import { organizations, users } from '../constants/db'
+import { organizations, users, organizationMembers } from '../constants/db'
 import { Paginator } from '../shared/types/paginator.types'
 
 @Injectable()
 export class OrganizationsRepo {
   private columns = organizations.columns
   private usersColumns = users.columns
+  private organizationMembersColumns = organizationMembers.columns
   constructor(@InjectConnection('knexx') private readonly knex: Knex) {}
 
   async createOrganization(createOrganizationData: CreateOrganizationData) {
@@ -32,9 +33,9 @@ export class OrganizationsRepo {
         this.where(organizations.columns.owner.name, userId)
           .orWhereExists(function() {
             this.select('*')
-              .from('organizations_members')
-              .whereRaw('organizations_members.orgId = organizations.orgId')
-              .andWhere('organizations_members.userId', userId)
+              .from(organizationMembers.name)
+              .whereRaw(`${organizationMembers.name}.${organizationMembers.columns.orgId.name} = ${organizations.name}.${organizations.columns.id.name}`)
+              .andWhere(`${organizationMembers.name}.${organizationMembers.columns.userId.name}`, userId)
           })
       })
       .orderBy(paginator.orderBy, paginator.direction)
@@ -49,9 +50,9 @@ export class OrganizationsRepo {
         this.where(organizations.columns.owner.name, userId)
           .orWhereExists(function() {
             this.select('*')
-              .from('organizations_members')
-              .whereRaw('organizations_members.orgId = organizations.orgId')
-              .andWhere('organizations_members.userId', userId)
+              .from(organizationMembers.name)
+              .whereRaw(`${organizationMembers.name}.${organizationMembers.columns.orgId.name} = ${organizations.name}.${organizations.columns.id.name}`)
+              .andWhere(`${organizationMembers.name}.${organizationMembers.columns.userId.name}`, userId)
           })
       })
       .first()
