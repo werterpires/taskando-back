@@ -20,7 +20,7 @@ export class OrganizationsRepo {
     userId: number,
     paginator: Paginator
   ): Promise<Organization[]> {
-    return (await this.knex(organizations.name)
+    const organizations = await this.knex(organizations.name)
       .select([
         this.columns.id.name,
         this.columns.name.name,
@@ -45,7 +45,19 @@ export class OrganizationsRepo {
       })
       .orderBy(paginator.orderBy, paginator.direction)
       .limit(paginator.limit)
-      .offset(paginator.offset)) as Organization[]
+      .offset(paginator.offset)
+
+    // Buscar roles para cada organização
+    for (const org of organizations) {
+      const memberRoles = await this.knex(organizationMembers.name)
+        .select([this.organizationMembersColumns.role.name])
+        .where(this.organizationMembersColumns.orgId.name, org[this.columns.id.name])
+        .andWhere(this.organizationMembersColumns.userId.name, userId)
+      
+      org.currentUserRoles = memberRoles.map(member => member[this.organizationMembersColumns.role.name])
+    }
+
+    return organizations as Organization[]
   }
 
   async countByOwnerIdOrMember(userId: number): Promise<number> {
@@ -70,7 +82,7 @@ export class OrganizationsRepo {
     return parseInt(result.total as string, 10)
   }
 
-  async getById(orgId: number, ownerId: number): Promise<Organization | null> {
+  async getById(orgId: number, userId: number): Promise<Organization | null> {
     const result = await this.knex(organizations.name)
       .select([
         this.columns.id.completeName,
@@ -90,10 +102,27 @@ export class OrganizationsRepo {
         this.usersColumns.id.completeName
       )
       .where(this.columns.id.completeName, orgId)
-      .andWhere(this.columns.owner.completeName, ownerId)
+      .where(function () {
+        this.where(organizations.columns.owner.name, userId).orWhereExists(
+          function () {
+            this.select('*')
+              .from(organizationMembers.name)
+              .where(organizationMembers.columns.orgId.name, orgId)
+              .andWhere(organizationMembers.columns.userId.name, userId)
+          }
+        )
+      })
       .first()
 
     if (!result) return null
+
+    // Buscar roles do usuário atual nesta organização
+    const memberRoles = await this.knex(organizationMembers.name)
+      .select([this.organizationMembersColumns.role.name])
+      .where(this.organizationMembersColumns.orgId.name, orgId)
+      .andWhere(this.organizationMembersColumns.userId.name, userId)
+
+    const currentUserRoles = memberRoles.map(member => member[this.organizationMembersColumns.role.name])
 
     return {
       orgId: result[this.columns.id.name],
@@ -102,6 +131,7 @@ export class OrganizationsRepo {
       address: result[this.columns.address.name],
       phone: result[this.columns.phone.name],
       ownerId: result[this.columns.owner.name],
+      currentUserRoles,
       owner: {
         userId: result[this.usersColumns.id.name],
         email: result[this.usersColumns.email.name],
