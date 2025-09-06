@@ -15,8 +15,8 @@ export class OrganizationsRepo {
     return await this.knex(organizations.name).insert(createOrganizationData)
   }
 
-  async getAllByOwnerId(
-    ownerId: number,
+  async getAllByOwnerIdOrMember(
+    userId: number,
     paginator: Paginator
   ): Promise<Organization[]> {
     return (await this.knex(organizations.name)
@@ -28,16 +28,32 @@ export class OrganizationsRepo {
         this.columns.phone.name,
         this.columns.owner.name
       ])
-      .where(this.columns.owner.name, ownerId)
+      .where(function() {
+        this.where(organizations.columns.owner.name, userId)
+          .orWhereExists(function() {
+            this.select('*')
+              .from('organizations_members')
+              .whereRaw('organizations_members.orgId = organizations.orgId')
+              .andWhere('organizations_members.userId', userId)
+          })
+      })
       .orderBy(paginator.orderBy, paginator.direction)
       .limit(paginator.limit)
       .offset(paginator.offset)) as Organization[]
   }
 
-  async countByOwnerId(ownerId: number): Promise<number> {
+  async countByOwnerIdOrMember(userId: number): Promise<number> {
     const result = await this.knex(organizations.name)
       .count('* as total')
-      .where(this.columns.owner.name, ownerId)
+      .where(function() {
+        this.where(organizations.columns.owner.name, userId)
+          .orWhereExists(function() {
+            this.select('*')
+              .from('organizations_members')
+              .whereRaw('organizations_members.orgId = organizations.orgId')
+              .andWhere('organizations_members.userId', userId)
+          })
+      })
       .first()
     if (!result) return 0
     return parseInt(result.total as string, 10)

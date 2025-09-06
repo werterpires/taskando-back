@@ -30,11 +30,11 @@ export class OrganizationsService {
   }
 
   async getAll(currentUser: ValidateUser, paginator: Paginator): Promise<Response<Organization>> {
-    const itens = await this.organizationsRepo.getAllByOwnerId(
+    const itens = await this.organizationsRepo.getAllByOwnerIdOrMember(
       currentUser.userId,
       paginator
     )
-    const quantity = await this.organizationsRepo.countByOwnerId(
+    const quantity = await this.organizationsRepo.countByOwnerIdOrMember(
       currentUser.userId
     )
     
