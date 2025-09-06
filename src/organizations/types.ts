@@ -1,3 +1,4 @@
+import { userRoleEnum } from 'src/constants/roles.enum'
 import { User } from 'src/users/types'
 
 export interface CreateOrganizationData {
@@ -11,4 +12,5 @@ export interface CreateOrganizationData {
 export interface Organization extends CreateOrganizationData {
   orgId: number
   owner?: User
+  currentUserRoles?: userRoleEnum[]
 }
