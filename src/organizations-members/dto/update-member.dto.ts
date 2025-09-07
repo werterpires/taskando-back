@@ -1,12 +1,11 @@
 
-import { IsNumber, IsBoolean, IsArray, IsEnum } from 'class-validator'
+import { IsNumber, IsBoolean, IsEnum } from 'class-validator'
 import { Type } from 'class-transformer'
 import { userRoleEnum } from 'src/constants/roles.enum'
 
 export class UpdateMemberDto {
-  @IsArray()
-  @IsEnum(userRoleEnum, { each: true })
-  roles: userRoleEnum[]
+  @IsEnum(userRoleEnum)
+  role: userRoleEnum
 
   @IsNumber()
   @Type(() => Number)

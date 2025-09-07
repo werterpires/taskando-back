@@ -79,11 +79,8 @@ export class OrganizationsMembersService {
     // Validar se o usuário pode atualizar membros
     await this.organizationsMembersHelper.validateUserCanUpdateMembers(currentUserId, updateMemberDto.orgId)
 
-    // Para este caso, vamos usar apenas o primeiro role do array
-    const role = updateMemberDto.roles[0]
-
     const updateData = {
-      role,
+      role: updateMemberDto.role,
       active: updateMemberDto.active
     }
 
