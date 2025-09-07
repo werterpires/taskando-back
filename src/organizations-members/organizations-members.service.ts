@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common'
 import { CreateInviteDto } from './dto/create-invite.dto'
 import { OrganizationsMembersRepo } from './organizations-members.repo'
 import { OrganizationsMembersHelper } from './organizations-members.helper'
+import { userRoleEnum } from 'src/constants/roles.enum'
 
 @Injectable()
 export class OrganizationsMembersService {
@@ -12,14 +13,19 @@ export class OrganizationsMembersService {
   ) {}
 
   async createInvite(createInviteDto: CreateInviteDto, userId: number) {
-    // Verificar se o usuário é owner da organização
+    // Verificar se o usuário é owner ou leader da organização
     const isOwner = await this.organizationsMembersRepo.isUserOwnerOfOrganization(
       userId, 
       createInviteDto.orgId
     )
     
-    if (!isOwner) {
-      throw new Error('Apenas o owner da organização pode criar convites')
+    const isLeader = await this.organizationsMembersRepo.isUserLeaderOfOrganization(
+      userId, 
+      createInviteDto.orgId
+    )
+    
+    if (!isOwner && !isLeader) {
+      throw new Error('Apenas owners ou leaders da organização podem criar convites')
     }
 
     // Gerar código de convite

@@ -23,6 +23,17 @@ export class OrganizationsMembersRepo {
     return !!result
   }
 
+  async isUserLeaderOfOrganization(userId: number, orgId: number): Promise<boolean> {
+    const result = await this.knex(organizationMembers.name)
+      .select(this.organizationMembersColumns.userId.name)
+      .where(this.organizationMembersColumns.userId.name, userId)
+      .andWhere(this.organizationMembersColumns.orgId.name, orgId)
+      .andWhere(this.organizationMembersColumns.role.name, 'leader')
+      .first()
+
+    return !!result
+  }
+
   async createUserWithInvite(userData: CreateUserData & { inviteCode: string }): Promise<number> {
     const [userId] = await this.knex(users.name).insert(userData)
     return userId
