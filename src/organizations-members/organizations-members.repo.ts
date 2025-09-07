@@ -34,16 +34,22 @@ export class OrganizationsMembersRepo {
     return !!result
   }
 
-  async createUserWithInvite(userData: CreateUserData & { inviteCode: string }): Promise<number> {
-    const [userId] = await this.knex(users.name).insert(userData)
-    return userId
-  }
+  async createUserWithInviteAndAddToOrganization(
+    userData: CreateUserData & { inviteCode: string },
+    memberData: { orgId: number; role: string }
+  ): Promise<number> {
+    return await this.knex.transaction(async (trx) => {
+      // Criar usuário
+      const [userId] = await trx(users.name).insert(userData)
 
-  async addMemberToOrganization(memberData: { userId: number; orgId: number; role: string }) {
-    return await this.knex(organizationMembers.name).insert({
-      [this.organizationMembersColumns.userId.name]: memberData.userId,
-      [this.organizationMembersColumns.orgId.name]: memberData.orgId,
-      [this.organizationMembersColumns.role.name]: memberData.role
+      // Adicionar usuário como membro da organização
+      await trx(organizationMembers.name).insert({
+        [this.organizationMembersColumns.userId.name]: userId,
+        [this.organizationMembersColumns.orgId.name]: memberData.orgId,
+        [this.organizationMembersColumns.role.name]: memberData.role
+      })
+
+      return userId
     })
   }
 }

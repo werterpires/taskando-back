@@ -21,14 +21,11 @@ export class OrganizationsMembersService {
     // Transformar DTO em dados do usuário
     const userData = this.organizationsMembersHelper.transformCreateInviteDtoToUserData(createInviteDto, inviteCode)
 
-    // Criar usuário com código de convite
-    const newUserId = await this.organizationsMembersRepo.createUserWithInvite(userData)
+    // Preparar dados do membro
+    const memberData = { orgId: createInviteDto.orgId, role: createInviteDto.role }
 
-    // Transformar dados do membro
-    const memberData = this.organizationsMembersHelper.transformToMemberData(newUserId, createInviteDto.orgId, createInviteDto.role)
-
-    // Adicionar membro à organização
-    await this.organizationsMembersRepo.addMemberToOrganization(memberData)
+    // Criar usuário e adicionar à organização em uma única transação
+    const newUserId = await this.organizationsMembersRepo.createUserWithInviteAndAddToOrganization(userData, memberData)
 
     return { inviteCode, userId: newUserId }
   }

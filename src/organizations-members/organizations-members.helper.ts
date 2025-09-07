@@ -64,15 +64,5 @@ export class OrganizationsMembersHelper {
     }
   }
 
-  transformToMemberData(userId: number, orgId: number, role: string): { userId: number; orgId: number; role: string } {
-    if (!userId || !orgId || !role) {
-      throw new BadRequestException('#Dados do membro são obrigatórios')
-    }
-
-    return {
-      userId,
-      orgId,
-      role
-    }
-  }
+  
 }
