@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { CreateInviteDto } from './dto/create-invite.dto'
+import { GetAllMembersDto } from './dto/get-all-members.dto'
+import { GetMemberByIdDto } from './dto/get-member-by-id.dto'
+import { UpdateMemberDto } from './dto/update-member.dto'
 import { OrganizationsMembersRepo } from './organizations-members.repo'
 import { OrganizationsMembersHelper } from './organizations-members.helper'
 import { userRoleEnum } from 'src/constants/roles.enum'
@@ -28,5 +31,73 @@ export class OrganizationsMembersService {
     const newUserId = await this.organizationsMembersRepo.createUserWithInviteAndAddToOrganization(userData, memberData)
 
     return { inviteCode, userId: newUserId }
+  }
+
+  async getAllMembers(getAllMembersDto: GetAllMembersDto, userId: number) {
+    // Validar se o usuário pode acessar a organização
+    await this.organizationsMembersHelper.validateUserCanAccessOrganization(userId, getAllMembersDto.orgId)
+
+    const { orgId, limit = 10, offset = 0 } = getAllMembersDto
+
+    // Buscar membros com paginação
+    const membersDb = await this.organizationsMembersRepo.getAllMembersByOrganization(orgId, limit, offset)
+    const total = await this.organizationsMembersRepo.countMembersByOrganization(orgId)
+
+    // Transformar resultado
+    const members = membersDb.map(member => 
+      this.organizationsMembersHelper.transformDbResultToOrganizationMember(member, false)
+    )
+
+    return {
+      data: members,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasNext: offset + limit < total,
+        hasPrev: offset > 0
+      }
+    }
+  }
+
+  async getMemberById(getMemberByIdDto: GetMemberByIdDto, currentUserId: number) {
+    // Validar se o usuário atual é membro ativo ou owner da organização
+    await this.organizationsMembersHelper.validateUserIsActiveMemberOrOwner(currentUserId, getMemberByIdDto.orgId)
+
+    // Buscar membro específico
+    const memberDb = await this.organizationsMembersRepo.getMemberById(getMemberByIdDto.userId, getMemberByIdDto.orgId)
+
+    if (!memberDb) {
+      throw new Error('Membro não encontrado')
+    }
+
+    // Transformar resultado incluindo organização
+    return this.organizationsMembersHelper.transformDbResultToOrganizationMember(memberDb, true)
+  }
+
+  async updateMember(updateMemberDto: UpdateMemberDto, currentUserId: number) {
+    // Validar se o usuário pode atualizar membros
+    await this.organizationsMembersHelper.validateUserCanUpdateMembers(currentUserId, updateMemberDto.orgId)
+
+    // Para este caso, vamos usar apenas o primeiro role do array
+    const role = updateMemberDto.roles[0]
+
+    const updateData = {
+      role,
+      active: updateMemberDto.active
+    }
+
+    // Atualizar membro
+    const result = await this.organizationsMembersRepo.updateMember(
+      updateMemberDto.userId,
+      updateMemberDto.orgId,
+      updateData
+    )
+
+    if (result === 0) {
+      throw new Error('Membro não encontrado ou não foi possível atualizar')
+    }
+
+    return { message: 'Membro atualizado com sucesso' }
   }
 }
