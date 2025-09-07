@@ -1,8 +1,9 @@
 
-import { Injectable } from '@nestjs/common'
+import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { CreateInviteDto } from './dto/create-invite.dto'
 import { CreateUserData } from 'src/users/types'
 import { OrganizationsMembersRepo } from './organizations-members.repo'
+import { CustomErrors } from 'src/shared/custom-error-handler/erros.enum'
 
 @Injectable()
 export class OrganizationsMembersHelper {
@@ -41,11 +42,19 @@ export class OrganizationsMembersHelper {
     const isLeader = await this.organizationsMembersRepo.isUserLeaderOfOrganization(userId, orgId)
     
     if (!isOwner && !isLeader) {
-      throw new Error('Apenas owners ou leaders da organização podem criar convites')
+      throw new ForbiddenException(CustomErrors.INSUFFICIENT_PERMISSIONS)
     }
   }
 
   transformCreateInviteDtoToUserData(createInviteDto: CreateInviteDto, inviteCode: string): CreateUserData & { inviteCode: string } {
+    if (!createInviteDto.email || !createInviteDto.firstName || !createInviteDto.lastName || !createInviteDto.password) {
+      throw new BadRequestException('#Dados obrigatórios do usuário não fornecidos')
+    }
+
+    if (!createInviteDto.orgId || !createInviteDto.role) {
+      throw new BadRequestException('#ID da organização e papel são obrigatórios')
+    }
+
     return {
       email: createInviteDto.email,
       firstName: createInviteDto.firstName,
@@ -56,6 +65,10 @@ export class OrganizationsMembersHelper {
   }
 
   transformToMemberData(userId: number, orgId: number, role: string): { userId: number; orgId: number; role: string } {
+    if (!userId || !orgId || !role) {
+      throw new BadRequestException('#Dados do membro são obrigatórios')
+    }
+
     return {
       userId,
       orgId,

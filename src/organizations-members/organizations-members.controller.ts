@@ -1,7 +1,7 @@
-import { Controller, Put, Body, UseGuards } from '@nestjs/common'
+import { Controller, Put, Body, Req, UseGuards, BadRequestException } from '@nestjs/common'
 import { OrganizationsMembersService } from './organizations-members.service'
 import { CreateInviteDto } from './dto/create-invite.dto'
-import { JwtAuthGuard } from 'src/shared/auth/guards/jwt-auth.guard'
+import { JwtAuthGuard } from '../shared/auth/guards/jwt-auth.guard'
 import { CurrentUser } from 'src/users/decorators/current-user.decorator'
 import { User } from 'src/users/types'
 
@@ -11,7 +11,13 @@ export class OrganizationsMembersController {
   constructor(private readonly organizationsMembersService: OrganizationsMembersService) {}
 
   @Put('invite')
-  async createInvite(@Body() createInviteDto: CreateInviteDto, @CurrentUser() user: User) {
-    return this.organizationsMembersService.createInvite(createInviteDto, user.userId)
+  async createInvite(@Body() createInviteDto: CreateInviteDto, @Req() req: any) {
+    const userId = req.user?.id
+
+    if (!userId) {
+      throw new BadRequestException('#Usuário não autenticado')
+    }
+
+    return this.organizationsMembersService.createInvite(createInviteDto, userId)
   }
 }
