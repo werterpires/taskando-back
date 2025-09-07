@@ -1,34 +1,17 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
-import { OrganizationsMembersService } from './organizations-members.service';
-import { CreateOrganizationsMemberDto } from './dto/create-organizations-member.dto';
-import { UpdateOrganizationsMemberDto } from './dto/update-organizations-member.dto';
+import { Controller, Put, Body, UseGuards } from '@nestjs/common'
+import { OrganizationsMembersService } from './organizations-members.service'
+import { CreateInviteDto } from './dto/create-invite.dto'
+import { JwtAuthGuard } from 'src/shared/auth/guards/jwt-auth.guard'
+import { CurrentUser } from 'src/users/decorators/current-user.decorator'
+import { User } from 'src/users/types'
 
 @Controller('organizations-members')
+@UseGuards(JwtAuthGuard)
 export class OrganizationsMembersController {
   constructor(private readonly organizationsMembersService: OrganizationsMembersService) {}
 
-  @Post()
-  create(@Body() createOrganizationsMemberDto: CreateOrganizationsMemberDto) {
-    return this.organizationsMembersService.create(createOrganizationsMemberDto);
-  }
-
-  @Get()
-  findAll() {
-    return this.organizationsMembersService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.organizationsMembersService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateOrganizationsMemberDto: UpdateOrganizationsMemberDto) {
-    return this.organizationsMembersService.update(+id, updateOrganizationsMemberDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.organizationsMembersService.remove(+id);
+  @Put('invite')
+  async createInvite(@Body() createInviteDto: CreateInviteDto, @CurrentUser() user: User) {
+    return this.organizationsMembersService.createInvite(createInviteDto, user.userId)
   }
 }

@@ -1,26 +1,46 @@
-import { Injectable } from '@nestjs/common';
-import { CreateOrganizationsMemberDto } from './dto/create-organizations-member.dto';
-import { UpdateOrganizationsMemberDto } from './dto/update-organizations-member.dto';
+
+import { Injectable } from '@nestjs/common'
+import { CreateInviteDto } from './dto/create-invite.dto'
+import { OrganizationsMembersRepo } from './organizations-members.repo'
+import { OrganizationsMembersHelper } from './organizations-members.helper'
 
 @Injectable()
 export class OrganizationsMembersService {
-  create(createOrganizationsMemberDto: CreateOrganizationsMemberDto) {
-    return 'This action adds a new organizationsMember';
-  }
+  constructor(
+    private readonly organizationsMembersRepo: OrganizationsMembersRepo,
+    private readonly organizationsMembersHelper: OrganizationsMembersHelper
+  ) {}
 
-  findAll() {
-    return `This action returns all organizationsMembers`;
-  }
+  async createInvite(createInviteDto: CreateInviteDto, userId: number) {
+    // Verificar se o usuário é owner da organização
+    const isOwner = await this.organizationsMembersRepo.isUserOwnerOfOrganization(
+      userId, 
+      createInviteDto.orgId
+    )
+    
+    if (!isOwner) {
+      throw new Error('Apenas o owner da organização pode criar convites')
+    }
 
-  findOne(id: number) {
-    return `This action returns a #${id} organizationsMember`;
-  }
+    // Gerar código de convite
+    const inviteCode = this.organizationsMembersHelper.generateInviteCode()
 
-  update(id: number, updateOrganizationsMemberDto: UpdateOrganizationsMemberDto) {
-    return `This action updates a #${id} organizationsMember`;
-  }
+    // Criar usuário com código de convite
+    const newUserId = await this.organizationsMembersRepo.createUserWithInvite({
+      email: createInviteDto.email,
+      firstName: createInviteDto.firstName,
+      lastName: createInviteDto.lastName,
+      password: createInviteDto.password,
+      inviteCode
+    })
 
-  remove(id: number) {
-    return `This action removes a #${id} organizationsMember`;
+    // Adicionar membro à organização
+    await this.organizationsMembersRepo.addMemberToOrganization({
+      userId: newUserId,
+      orgId: createInviteDto.orgId,
+      role: createInviteDto.role
+    })
+
+    return { inviteCode, userId: newUserId }
   }
 }

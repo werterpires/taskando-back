@@ -1,4 +1,2 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateOrganizationsMemberDto } from './create-organizations-member.dto';
 
-export class UpdateOrganizationsMemberDto extends PartialType(CreateOrganizationsMemberDto) {}
+// Este arquivo pode ser removido pois não será utilizado
