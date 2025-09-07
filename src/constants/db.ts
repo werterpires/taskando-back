@@ -249,6 +249,13 @@ export const organizationMembers: DbTable = {
       type: 'string',
       length: 255,
       nullable: false
+    },
+    active: {
+      name: 'active',
+      completeName: 'organizationMembers.active',
+      type: 'boolean',
+      nullable: false,
+      default: true
     }
   }
 }
@@ -342,6 +349,13 @@ export const departmentMembers: DbTable = {
       type: 'string',
       length: 100,
       nullable: false
+    },
+    active: {
+      name: 'active',
+      completeName: 'departmentMembers.active',
+      type: 'boolean',
+      nullable: false,
+      default: true
     }
   }
 }
@@ -447,6 +461,13 @@ export const teamMembers: DbTable = {
       type: 'string',
       length: 100,
       nullable: false
+    },
+    active: {
+      name: 'active',
+      completeName: 'teamMembers.active',
+      type: 'boolean',
+      nullable: false,
+      default: true
     }
   }
 }
@@ -564,6 +585,13 @@ export const squadMembers: DbTable = {
       type: 'string',
       length: 100,
       nullable: true
+    },
+    active: {
+      name: 'active',
+      completeName: 'squadMembers.active',
+      type: 'boolean',
+      nullable: false,
+      default: true
     }
   }
 }
@@ -1052,6 +1080,12 @@ export const domainMembers: DbTable = {
       type: 'string',
       length: 100,
       nullable: true
+    },
+    active: {
+      name: 'active',
+      completeName: 'domainMembers.active',
+      type: 'boolean',
+      nullable: false
     }
   }
 }
@@ -1424,6 +1458,12 @@ export const productMembers: DbTable = {
       type: 'string',
       length: 100,
       nullable: true
+    },
+    active: {
+      name: 'active',
+      completeName: 'productMembers.active',
+      type: 'boolean',
+      nullable: false
     }
   }
 }
@@ -1679,6 +1719,13 @@ export const phaseMembers: DbTable = {
       type: 'string',
       length: 100,
       nullable: true
+    },
+    active: {
+      name: 'active',
+      completeName: 'phaseMembers.active',
+      type: 'boolean',
+      nullable: false,
+      default: true
     }
   }
 }
@@ -1716,6 +1763,13 @@ export const processMembers: DbTable = {
       type: 'string',
       length: 100,
       nullable: true
+    },
+    active: {
+      name: 'active',
+      completeName: 'processMembers.active',
+      type: 'boolean',
+      nullable: false,
+      default: true
     }
   }
 }
@@ -2191,6 +2245,13 @@ export const taskMembers: DbTable = {
       type: 'string',
       length: 100,
       nullable: true
+    },
+    active: {
+      name: 'active',
+      completeName: 'taskMembers.active',
+      type: 'boolean',
+      nullable: false,
+      default: true
     }
   }
 }

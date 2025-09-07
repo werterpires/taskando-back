@@ -1,4 +1,3 @@
-
 import { Injectable } from '@nestjs/common'
 import { InjectConnection } from 'nest-knexjs'
 import { Knex } from 'knex'
@@ -13,7 +12,10 @@ export class OrganizationsMembersRepo {
 
   constructor(@InjectConnection('knexx') private readonly knex: Knex) {}
 
-  async isUserOwnerOfOrganization(userId: number, orgId: number): Promise<boolean> {
+  async isUserOwnerOfOrganization(
+    userId: number,
+    orgId: number
+  ): Promise<boolean> {
     const result = await this.knex(organizations.name)
       .select(this.organizationsColumns.id.name)
       .where(this.organizationsColumns.id.name, orgId)
@@ -23,7 +25,10 @@ export class OrganizationsMembersRepo {
     return !!result
   }
 
-  async isUserLeaderOfOrganization(userId: number, orgId: number): Promise<boolean> {
+  async isUserLeaderOfOrganization(
+    userId: number,
+    orgId: number
+  ): Promise<boolean> {
     const result = await this.knex(organizationMembers.name)
       .select(this.organizationMembersColumns.userId.name)
       .where(this.organizationMembersColumns.userId.name, userId)
@@ -46,7 +51,8 @@ export class OrganizationsMembersRepo {
       await trx(organizationMembers.name).insert({
         [this.organizationMembersColumns.userId.name]: userId,
         [this.organizationMembersColumns.orgId.name]: memberData.orgId,
-        [this.organizationMembersColumns.role.name]: memberData.role
+        [this.organizationMembersColumns.role.name]: memberData.role,
+        [this.organizationMembersColumns.active.name]: false
       })
 
       return userId
