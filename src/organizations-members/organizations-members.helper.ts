@@ -1,8 +1,13 @@
 
 import { Injectable } from '@nestjs/common'
+import { CreateInviteDto } from './dto/create-invite.dto'
+import { CreateUserData } from 'src/users/types'
+import { OrganizationsMembersRepo } from './organizations-members.repo'
 
 @Injectable()
 export class OrganizationsMembersHelper {
+  constructor(private readonly organizationsMembersRepo: OrganizationsMembersRepo) {}
+
   generateInviteCode(): string {
     // Gerar 22 caracteres aleatórios
     const randomChars = this.generateRandomString(22)
@@ -29,5 +34,32 @@ export class OrganizationsMembersHelper {
     const timestampBase64 = inviteCode.slice(-8)
     const timestamp = Buffer.from(timestampBase64, 'base64').toString()
     return new Date(parseInt(timestamp))
+  }
+
+  async validateUserCanCreateInvite(userId: number, orgId: number): Promise<void> {
+    const isOwner = await this.organizationsMembersRepo.isUserOwnerOfOrganization(userId, orgId)
+    const isLeader = await this.organizationsMembersRepo.isUserLeaderOfOrganization(userId, orgId)
+    
+    if (!isOwner && !isLeader) {
+      throw new Error('Apenas owners ou leaders da organização podem criar convites')
+    }
+  }
+
+  transformCreateInviteDtoToUserData(createInviteDto: CreateInviteDto, inviteCode: string): CreateUserData & { inviteCode: string } {
+    return {
+      email: createInviteDto.email,
+      firstName: createInviteDto.firstName,
+      lastName: createInviteDto.lastName,
+      password: createInviteDto.password,
+      inviteCode
+    }
+  }
+
+  transformToMemberData(userId: number, orgId: number, role: string): { userId: number; orgId: number; role: string } {
+    return {
+      userId,
+      orgId,
+      role
+    }
   }
 }

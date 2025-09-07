@@ -1,4 +1,3 @@
-
 import { Injectable } from '@nestjs/common'
 import { CreateInviteDto } from './dto/create-invite.dto'
 import { OrganizationsMembersRepo } from './organizations-members.repo'
@@ -13,39 +12,23 @@ export class OrganizationsMembersService {
   ) {}
 
   async createInvite(createInviteDto: CreateInviteDto, userId: number) {
-    // Verificar se o usuário é owner ou leader da organização
-    const isOwner = await this.organizationsMembersRepo.isUserOwnerOfOrganization(
-      userId, 
-      createInviteDto.orgId
-    )
-    
-    const isLeader = await this.organizationsMembersRepo.isUserLeaderOfOrganization(
-      userId, 
-      createInviteDto.orgId
-    )
-    
-    if (!isOwner && !isLeader) {
-      throw new Error('Apenas owners ou leaders da organização podem criar convites')
-    }
+    // Validar se o usuário pode criar convites
+    await this.organizationsMembersHelper.validateUserCanCreateInvite(userId, createInviteDto.orgId)
 
     // Gerar código de convite
     const inviteCode = this.organizationsMembersHelper.generateInviteCode()
 
+    // Transformar DTO em dados do usuário
+    const userData = this.organizationsMembersHelper.transformCreateInviteDtoToUserData(createInviteDto, inviteCode)
+
     // Criar usuário com código de convite
-    const newUserId = await this.organizationsMembersRepo.createUserWithInvite({
-      email: createInviteDto.email,
-      firstName: createInviteDto.firstName,
-      lastName: createInviteDto.lastName,
-      password: createInviteDto.password,
-      inviteCode
-    })
+    const newUserId = await this.organizationsMembersRepo.createUserWithInvite(userData)
+
+    // Transformar dados do membro
+    const memberData = this.organizationsMembersHelper.transformToMemberData(newUserId, createInviteDto.orgId, createInviteDto.role)
 
     // Adicionar membro à organização
-    await this.organizationsMembersRepo.addMemberToOrganization({
-      userId: newUserId,
-      orgId: createInviteDto.orgId,
-      role: createInviteDto.role
-    })
+    await this.organizationsMembersRepo.addMemberToOrganization(memberData)
 
     return { inviteCode, userId: newUserId }
   }
