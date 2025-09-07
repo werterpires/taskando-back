@@ -20,7 +20,7 @@ export class OrganizationsRepo {
     userId: number,
     paginator: Paginator
   ): Promise<Organization[]> {
-    const organizations = await this.knex(organizations.name)
+    const organizationsDB = await this.knex(organizations.name)
       .select([
         this.columns.id.name,
         this.columns.name.name,
@@ -48,16 +48,21 @@ export class OrganizationsRepo {
       .offset(paginator.offset)
 
     // Buscar roles para cada organização
-    for (const org of organizations) {
+    for (const org of organizationsDB) {
       const memberRoles = await this.knex(organizationMembers.name)
         .select([this.organizationMembersColumns.role.name])
-        .where(this.organizationMembersColumns.orgId.name, org[this.columns.id.name])
+        .where(
+          this.organizationMembersColumns.orgId.name,
+          org[this.columns.id.name]
+        )
         .andWhere(this.organizationMembersColumns.userId.name, userId)
-      
-      org.currentUserRoles = memberRoles.map(member => member[this.organizationMembersColumns.role.name])
+
+      org.currentUserRoles = memberRoles.map(
+        (member) => member[this.organizationMembersColumns.role.name]
+      )
     }
 
-    return organizations as Organization[]
+    return organizationsDB as Organization[]
   }
 
   async countByOwnerIdOrMember(userId: number): Promise<number> {
@@ -122,7 +127,9 @@ export class OrganizationsRepo {
       .where(this.organizationMembersColumns.orgId.name, orgId)
       .andWhere(this.organizationMembersColumns.userId.name, userId)
 
-    const currentUserRoles = memberRoles.map(member => member[this.organizationMembersColumns.role.name])
+    const currentUserRoles = memberRoles.map(
+      (member) => member[this.organizationMembersColumns.role.name]
+    )
 
     return {
       orgId: result[this.columns.id.name],
