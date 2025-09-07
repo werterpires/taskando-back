@@ -1,11 +1,11 @@
+
 import { Injectable } from '@nestjs/common'
 import { CreateInviteDto } from './dto/create-invite.dto'
-import { GetAllMembersDto } from './dto/get-all-members.dto'
-import { GetMemberByIdDto } from './dto/get-member-by-id.dto'
 import { UpdateMemberDto } from './dto/update-member.dto'
 import { OrganizationsMembersRepo } from './organizations-members.repo'
 import { OrganizationsMembersHelper } from './organizations-members.helper'
 import { userRoleEnum } from 'src/constants/roles.enum'
+import { Paginator } from 'src/shared/types/paginator.types'
 
 @Injectable()
 export class OrganizationsMembersService {
@@ -33,11 +33,11 @@ export class OrganizationsMembersService {
     return { inviteCode, userId: newUserId }
   }
 
-  async getAllMembers(getAllMembersDto: GetAllMembersDto, userId: number) {
+  async getAllMembers(orgId: number, paginator: Paginator, userId: number) {
     // Validar se o usuário pode acessar a organização
-    await this.organizationsMembersHelper.validateUserCanAccessOrganization(userId, getAllMembersDto.orgId)
+    await this.organizationsMembersHelper.validateUserCanAccessOrganization(userId, orgId)
 
-    const { orgId, limit = 10, offset = 0 } = getAllMembersDto
+    const { limit = 10, offset = 0 } = paginator
 
     // Buscar membros com paginação
     const membersDb = await this.organizationsMembersRepo.getAllMembersByOrganization(orgId, limit, offset)
@@ -60,12 +60,12 @@ export class OrganizationsMembersService {
     }
   }
 
-  async getMemberById(getMemberByIdDto: GetMemberByIdDto, currentUserId: number) {
+  async getMemberById(userId: number, orgId: number, currentUserId: number) {
     // Validar se o usuário atual é membro ativo ou owner da organização
-    await this.organizationsMembersHelper.validateUserIsActiveMemberOrOwner(currentUserId, getMemberByIdDto.orgId)
+    await this.organizationsMembersHelper.validateUserIsActiveMemberOrOwner(currentUserId, orgId)
 
     // Buscar membro específico
-    const memberDb = await this.organizationsMembersRepo.getMemberById(getMemberByIdDto.userId, getMemberByIdDto.orgId)
+    const memberDb = await this.organizationsMembersRepo.getMemberById(userId, orgId)
 
     if (!memberDb) {
       throw new Error('Membro não encontrado')

@@ -66,9 +66,9 @@ export class OrganizationsMembersHelper {
 
   async validateUserCanAccessOrganization(userId: number, orgId: number): Promise<void> {
     const isOwner = await this.organizationsMembersRepo.isUserOwnerOfOrganization(userId, orgId)
-    const isMember = await this.organizationsMembersRepo.isUserMemberOfOrganization(userId, orgId)
+    const isActiveMember = await this.organizationsMembersRepo.isUserActiveMemberOfOrganization(userId, orgId)
     
-    if (!isOwner && !isMember) {
+    if (!isOwner && !isActiveMember) {
       throw new ForbiddenException(CustomErrors.INSUFFICIENT_PERMISSIONS)
     }
   }
@@ -97,28 +97,25 @@ export class OrganizationsMembersHelper {
       orgId: dbResult.orgId,
       role: dbResult.role,
       active: dbResult.active,
-      user: dbResult.user_id ? {
-        userId: dbResult.user_id,
-        email: dbResult.user_email,
-        firstName: dbResult.user_firstName,
-        lastName: dbResult.user_lastName
+      user: dbResult.id ? {
+        userId: dbResult.id,
+        email: dbResult.email,
+        firstName: dbResult.firstName,
+        lastName: dbResult.lastName
       } : undefined
     }
 
-    if (includeOrganization && dbResult.org_id) {
+    if (includeOrganization && dbResult.id) {
       member['organization'] = {
-        orgId: dbResult.org_id,
-        name: dbResult.org_name,
-        cnpj: dbResult.org_cnpj,
-        address: dbResult.org_address,
-        phone: dbResult.org_phone,
-        ownerId: dbResult.org_owner
+        orgId: dbResult.id,
+        name: dbResult.name,
+        cnpj: dbResult.cnpj,
+        address: dbResult.address,
+        phone: dbResult.phone,
+        ownerId: dbResult.owner
       }
     }
 
     return member
   }
-  }
-
-  
 }

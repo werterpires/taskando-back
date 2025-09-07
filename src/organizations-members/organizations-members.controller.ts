@@ -1,3 +1,4 @@
+
 import {
   Controller,
   Put,
@@ -12,12 +13,11 @@ import {
 } from '@nestjs/common'
 import { OrganizationsMembersService } from './organizations-members.service'
 import { CreateInviteDto } from './dto/create-invite.dto'
-import { GetAllMembersDto } from './dto/get-all-members.dto'
-import { GetMemberByIdDto } from './dto/get-member-by-id.dto'
 import { UpdateMemberDto } from './dto/update-member.dto'
 import { JwtAuthGuard } from '../shared/auth/guards/jwt-auth.guard'
 import { CurrentUser } from 'src/users/decorators/current-user.decorator'
 import { User } from 'src/users/types'
+import { Paginator } from 'src/shared/types/paginator.types'
 
 @Controller('organizations-members')
 @UseGuards(JwtAuthGuard)
@@ -49,8 +49,7 @@ export class OrganizationsMembersController {
     @Req() req: any
   ) {
     const userId = req.user?.id
-    const getAllMembersDto: GetAllMembersDto = {
-      orgId,
+    const paginator: Paginator = {
       limit,
       offset,
       orderBy,
@@ -58,25 +57,23 @@ export class OrganizationsMembersController {
     }
 
     return this.organizationsMembersService.getAllMembers(
-      getAllMembersDto,
+      orgId,
+      paginator,
       userId
     )
   }
 
-  @Get('user/:userId/organization/:orgId')
+  @Get('member')
   async getMemberById(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('orgId', ParseIntPipe) orgId: number,
+    @Query('userId', ParseIntPipe) userId: number,
+    @Query('orgId', ParseIntPipe) orgId: number,
     @Req() req: any
   ) {
     const currentUserId = req.user?.id
-    const getMemberByIdDto: GetMemberByIdDto = {
-      userId,
-      orgId
-    }
 
     return this.organizationsMembersService.getMemberById(
-      getMemberByIdDto,
+      userId,
+      orgId,
       currentUserId
     )
   }

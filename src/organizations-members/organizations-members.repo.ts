@@ -93,14 +93,14 @@ export class OrganizationsMembersRepo {
   ) {
     return await this.knex(organizationMembers.name)
       .select([
-        `${this.organizationMembersColumns.userId.name}`,
-        `${this.organizationMembersColumns.orgId.name}`,
-        `${this.organizationMembersColumns.role.name}`,
-        `${this.organizationMembersColumns.active.name}`,
-        `${this.usersColumns.id.name} as user_id`,
-        `${this.usersColumns.email.name} as user_email`,
-        `${this.usersColumns.firstName.name} as user_firstName`,
-        `${this.usersColumns.lastName.name} as user_lastName`
+        this.organizationMembersColumns.userId.name,
+        this.organizationMembersColumns.orgId.name,
+        this.organizationMembersColumns.role.name,
+        this.organizationMembersColumns.active.name,
+        this.usersColumns.id.name,
+        this.usersColumns.email.name,
+        this.usersColumns.firstName.name,
+        this.usersColumns.lastName.name
       ])
       .leftJoin(
         users.name,
@@ -125,20 +125,20 @@ export class OrganizationsMembersRepo {
   async getMemberById(userId: number, orgId: number) {
     return await this.knex(organizationMembers.name)
       .select([
-        `${this.organizationMembersColumns.userId.name}`,
-        `${this.organizationMembersColumns.orgId.name}`,
-        `${this.organizationMembersColumns.role.name}`,
-        `${this.organizationMembersColumns.active.name}`,
-        `${this.usersColumns.id.name} as user_id`,
-        `${this.usersColumns.email.name} as user_email`,
-        `${this.usersColumns.firstName.name} as user_firstName`,
-        `${this.usersColumns.lastName.name} as user_lastName`,
-        `${this.organizationsColumns.id.name} as org_id`,
-        `${this.organizationsColumns.name.name} as org_name`,
-        `${this.organizationsColumns.cnpj.name} as org_cnpj`,
-        `${this.organizationsColumns.address.name} as org_address`,
-        `${this.organizationsColumns.phone.name} as org_phone`,
-        `${this.organizationsColumns.owner.name} as org_owner`
+        this.organizationMembersColumns.userId.name,
+        this.organizationMembersColumns.orgId.name,
+        this.organizationMembersColumns.role.name,
+        this.organizationMembersColumns.active.name,
+        this.usersColumns.id.name,
+        this.usersColumns.email.name,
+        this.usersColumns.firstName.name,
+        this.usersColumns.lastName.name,
+        this.organizationsColumns.id.name,
+        this.organizationsColumns.name.name,
+        this.organizationsColumns.cnpj.name,
+        this.organizationsColumns.address.name,
+        this.organizationsColumns.phone.name,
+        this.organizationsColumns.owner.name
       ])
       .leftJoin(
         users.name,
