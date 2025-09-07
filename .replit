@@ -25,6 +25,7 @@ args = "NestJS Server"
 [[workflows.workflow]]
 name = "NestJS Server"
 author = "agent"
+mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
