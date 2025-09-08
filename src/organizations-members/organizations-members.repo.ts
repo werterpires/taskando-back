@@ -3,6 +3,7 @@ import { InjectConnection } from 'nest-knexjs'
 import { Knex } from 'knex'
 import { users, organizations, organizationMembers } from '../constants/db'
 import { CreateUserData } from 'src/users/types'
+import { OrganizationMember } from './types'
 
 @Injectable()
 export class OrganizationsMembersRepo {
@@ -90,8 +91,8 @@ export class OrganizationsMembersRepo {
     orgId: number,
     limit: number,
     offset: number
-  ) {
-    return await this.knex(organizationMembers.name)
+  ): Promise<OrganizationMember[]> {
+    const member = await this.knex(organizationMembers.name)
       .select([
         this.organizationMembersColumns.userId.name,
         this.organizationMembersColumns.orgId.name,
@@ -110,6 +111,8 @@ export class OrganizationsMembersRepo {
       .where(this.organizationMembersColumns.orgId.name, orgId)
       .limit(limit)
       .offset(offset)
+
+    return member
   }
 
   async countMembersByOrganization(orgId: number): Promise<number> {

@@ -7,7 +7,6 @@ export interface createOrganizationMember {
   orgId: number
   role: userRoleEnum
 }
-export interface OrganizationMember extends createOrganizationMember {
-  user?: User
+export interface OrganizationMember extends createOrganizationMember, User {
   organization?: Organization
 }
