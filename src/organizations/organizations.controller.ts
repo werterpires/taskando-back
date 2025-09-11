@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Body,
-  Patch,
   Param,
   Delete,
   Query,
@@ -38,6 +37,7 @@ export class OrganizationsController {
     @Query('orderBy', new DefaultValuePipe('orgId')) orderBy: string,
     @Query('direction', new DefaultValuePipe('ASC')) direction: string
   ) {
+    console.log('user controller 2', currentUser)
     const paginator: Paginator = { limit, offset, orderBy, direction }
     return this.organizationsService.getAll(currentUser, paginator)
   }
@@ -47,6 +47,7 @@ export class OrganizationsController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: ValidateUser
   ) {
+    console.log('user controller 3', currentUser)
     return this.organizationsService.findOne(id, currentUser)
   }
 

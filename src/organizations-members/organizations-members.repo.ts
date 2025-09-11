@@ -17,10 +17,11 @@ export class OrganizationsMembersRepo {
     userId: number,
     orgId: number
   ): Promise<boolean> {
+    console.log('userId, orgId', userId, orgId)
     const result = await this.knex(organizations.name)
-      .select(this.organizationsColumns.id.name)
-      .where(this.organizationsColumns.id.name, orgId)
-      .andWhere(this.organizationsColumns.owner.name, userId)
+      .select(this.organizationsColumns.id.completeName)
+      .where(this.organizationsColumns.id.completeName, orgId)
+      .andWhere(this.organizationsColumns.owner.completeName, userId)
       .first()
 
     return !!result
@@ -31,10 +32,10 @@ export class OrganizationsMembersRepo {
     orgId: number
   ): Promise<boolean> {
     const result = await this.knex(organizationMembers.name)
-      .select(this.organizationMembersColumns.userId.name)
-      .where(this.organizationMembersColumns.userId.name, userId)
-      .andWhere(this.organizationMembersColumns.orgId.name, orgId)
-      .andWhere(this.organizationMembersColumns.role.name, 'leader')
+      .select(this.organizationMembersColumns.userId.completeName)
+      .where(this.organizationMembersColumns.userId.completeName, userId)
+      .andWhere(this.organizationMembersColumns.orgId.completeName, orgId)
+      .andWhere(this.organizationMembersColumns.role.completeName, 'leader')
       .first()
 
     return !!result
@@ -50,10 +51,10 @@ export class OrganizationsMembersRepo {
 
       // Adicionar usuário como membro da organização
       await trx(organizationMembers.name).insert({
-        [this.organizationMembersColumns.userId.name]: userId,
-        [this.organizationMembersColumns.orgId.name]: memberData.orgId,
-        [this.organizationMembersColumns.role.name]: memberData.role,
-        [this.organizationMembersColumns.active.name]: false
+        [this.organizationMembersColumns.userId.completeName]: userId,
+        [this.organizationMembersColumns.orgId.completeName]: memberData.orgId,
+        [this.organizationMembersColumns.role.completeName]: memberData.role,
+        [this.organizationMembersColumns.active.completeName]: false
       })
 
       return userId
@@ -65,9 +66,9 @@ export class OrganizationsMembersRepo {
     orgId: number
   ): Promise<boolean> {
     const result = await this.knex(organizationMembers.name)
-      .select(this.organizationMembersColumns.userId.name)
-      .where(this.organizationMembersColumns.userId.name, userId)
-      .andWhere(this.organizationMembersColumns.orgId.name, orgId)
+      .select(this.organizationMembersColumns.userId.completeName)
+      .where(this.organizationMembersColumns.userId.completeName, userId)
+      .andWhere(this.organizationMembersColumns.orgId.completeName, orgId)
       .first()
 
     return !!result
@@ -78,10 +79,10 @@ export class OrganizationsMembersRepo {
     orgId: number
   ): Promise<boolean> {
     const result = await this.knex(organizationMembers.name)
-      .select(this.organizationMembersColumns.userId.name)
-      .where(this.organizationMembersColumns.userId.name, userId)
-      .andWhere(this.organizationMembersColumns.orgId.name, orgId)
-      .andWhere(this.organizationMembersColumns.active.name, true)
+      .select(this.organizationMembersColumns.userId.completeName)
+      .where(this.organizationMembersColumns.userId.completeName, userId)
+      .andWhere(this.organizationMembersColumns.orgId.completeName, orgId)
+      .andWhere(this.organizationMembersColumns.active.completeName, true)
       .first()
 
     return !!result
@@ -92,33 +93,57 @@ export class OrganizationsMembersRepo {
     limit: number,
     offset: number
   ): Promise<OrganizationMember[]> {
-    const member = await this.knex(organizationMembers.name)
+    const members: OrganizationMember[] = await this.knex(
+      organizationMembers.name
+    )
       .select([
-        this.organizationMembersColumns.userId.name,
-        this.organizationMembersColumns.orgId.name,
-        this.organizationMembersColumns.role.name,
-        this.organizationMembersColumns.active.name,
-        this.usersColumns.id.name,
-        this.usersColumns.email.name,
-        this.usersColumns.firstName.name,
-        this.usersColumns.lastName.name
+        this.organizationMembersColumns.userId.completeName,
+        this.organizationMembersColumns.orgId.completeName,
+        this.organizationMembersColumns.role.completeName,
+        this.organizationMembersColumns.active.completeName,
+        this.usersColumns.id.completeName,
+        this.usersColumns.email.completeName,
+        this.usersColumns.firstName.completeName,
+        this.usersColumns.lastName.completeName
       ])
       .leftJoin(
         users.name,
-        this.organizationMembersColumns.userId.name,
-        this.usersColumns.id.name
+        this.organizationMembersColumns.userId.completeName,
+        this.usersColumns.id.completeName
       )
-      .where(this.organizationMembersColumns.orgId.name, orgId)
+      .where(this.organizationMembersColumns.orgId.completeName, orgId)
       .limit(limit)
       .offset(offset)
 
-    return member
+    const owner = await this.knex(organizations.name)
+      .select(
+        this.organizationsColumns.owner.completeName,
+        this.organizationsColumns.id.completeName,
+        this.usersColumns.firstName.completeName,
+        this.usersColumns.lastName.completeName,
+        this.usersColumns.email.completeName,
+        this.usersColumns.id.completeName
+      )
+      .leftJoin(
+        users.name,
+        this.organizationsColumns.owner.completeName,
+        this.usersColumns.id.completeName
+      )
+      .where(this.organizationsColumns.id.completeName, orgId)
+      .first()
+
+    owner.role = 'owner'
+    owner.active = true
+
+    members.push(owner as OrganizationMember)
+
+    return members
   }
 
   async countMembersByOrganization(orgId: number): Promise<number> {
     const result = await this.knex(organizationMembers.name)
       .count('* as total')
-      .where(this.organizationMembersColumns.orgId.name, orgId)
+      .where(this.organizationMembersColumns.orgId.completeName, orgId)
       .first()
 
     if (!result) return 0
@@ -128,33 +153,33 @@ export class OrganizationsMembersRepo {
   async getMemberById(userId: number, orgId: number) {
     return await this.knex(organizationMembers.name)
       .select([
-        this.organizationMembersColumns.userId.name,
-        this.organizationMembersColumns.orgId.name,
-        this.organizationMembersColumns.role.name,
-        this.organizationMembersColumns.active.name,
-        this.usersColumns.id.name,
-        this.usersColumns.email.name,
-        this.usersColumns.firstName.name,
-        this.usersColumns.lastName.name,
-        this.organizationsColumns.id.name,
-        this.organizationsColumns.name.name,
-        this.organizationsColumns.cnpj.name,
-        this.organizationsColumns.address.name,
-        this.organizationsColumns.phone.name,
-        this.organizationsColumns.owner.name
+        this.organizationMembersColumns.userId.completeName,
+        this.organizationMembersColumns.orgId.completeName,
+        this.organizationMembersColumns.role.completeName,
+        this.organizationMembersColumns.active.completeName,
+        this.usersColumns.id.completeName,
+        this.usersColumns.email.completeName,
+        this.usersColumns.firstName.completeName,
+        this.usersColumns.lastName.completeName,
+        this.organizationsColumns.id.completeName,
+        this.organizationsColumns.completeName.completeName,
+        this.organizationsColumns.cnpj.completeName,
+        this.organizationsColumns.address.completeName,
+        this.organizationsColumns.phone.completeName,
+        this.organizationsColumns.owner.completeName
       ])
       .leftJoin(
         users.name,
-        this.organizationMembersColumns.userId.name,
-        this.usersColumns.id.name
+        this.organizationMembersColumns.userId.completeName,
+        this.usersColumns.id.completeName
       )
       .leftJoin(
         organizations.name,
-        this.organizationMembersColumns.orgId.name,
-        this.organizationsColumns.id.name
+        this.organizationMembersColumns.orgId.completeName,
+        this.organizationsColumns.id.completeName
       )
-      .where(this.organizationMembersColumns.userId.name, userId)
-      .andWhere(this.organizationMembersColumns.orgId.name, orgId)
+      .where(this.organizationMembersColumns.userId.completeName, userId)
+      .andWhere(this.organizationMembersColumns.orgId.completeName, orgId)
       .first()
   }
 
@@ -164,8 +189,8 @@ export class OrganizationsMembersRepo {
     updateData: { role?: string; active?: boolean }
   ) {
     return await this.knex(organizationMembers.name)
-      .where(this.organizationMembersColumns.userId.name, userId)
-      .andWhere(this.organizationMembersColumns.orgId.name, orgId)
+      .where(this.organizationMembersColumns.userId.completeName, userId)
+      .andWhere(this.organizationMembersColumns.orgId.completeName, orgId)
       .update(updateData)
   }
 }

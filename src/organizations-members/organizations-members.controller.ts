@@ -1,4 +1,3 @@
-
 import {
   Controller,
   Put,
@@ -7,20 +6,16 @@ import {
   Param,
   Query,
   Req,
-  UseGuards,
-  BadRequestException,
   ParseIntPipe
 } from '@nestjs/common'
 import { OrganizationsMembersService } from './organizations-members.service'
 import { CreateInviteDto } from './dto/create-invite.dto'
 import { UpdateMemberDto } from './dto/update-member.dto'
-import { JwtAuthGuard } from '../shared/auth/guards/jwt-auth.guard'
 import { CurrentUser } from 'src/users/decorators/current-user.decorator'
-import { User } from 'src/users/types'
 import { Paginator } from 'src/shared/types/paginator.types'
+import { ValidateUser } from 'src/shared/auth/types'
 
 @Controller('organizations-members')
-@UseGuards(JwtAuthGuard)
 export class OrganizationsMembersController {
   constructor(
     private readonly organizationsMembersService: OrganizationsMembersService
@@ -29,9 +24,10 @@ export class OrganizationsMembersController {
   @Put('invite')
   async createInvite(
     @Body() createInviteDto: CreateInviteDto,
-    @Req() req: any
+    @CurrentUser() user: ValidateUser
   ) {
-    const userId = req.user?.id
+    console.log('user controller', user)
+    const userId = user.userId
 
     return this.organizationsMembersService.createInvite(
       createInviteDto,
@@ -46,9 +42,10 @@ export class OrganizationsMembersController {
     @Query('offset', ParseIntPipe) offset: number = 0,
     @Query('orderBy') orderBy: string = 'userId',
     @Query('direction') direction: string = 'ASC',
-    @Req() req: any
+    @CurrentUser() CurrentUser: ValidateUser
   ) {
-    const userId = req.user?.id
+    console.log('user controller', CurrentUser)
+    const userId = CurrentUser.userId
     const paginator: Paginator = {
       limit,
       offset,
