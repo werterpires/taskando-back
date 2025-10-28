@@ -8,7 +8,7 @@ export class UsersHelper {
   makeCreateUserDataFromDto(createUserDto: CreateUserDto) {
     return {
       email: createUserDto.email,
-      password: bcrypt.hashSync(createUserDto.password, 10),
+      password: bcrypt.hashSync(createUserDto.password, 12),
       firstName: createUserDto.firstName,
       lastName: createUserDto.lastName
     }
@@ -18,7 +18,7 @@ export class UsersHelper {
     return {
       userId: updateUserDto.userId,
       email: updateUserDto.email,
-      password: bcrypt.hashSync(updateUserDto.password, 10),
+      password: bcrypt.hashSync(updateUserDto.password, 12),
       firstName: updateUserDto.firstName,
       lastName: updateUserDto.lastName
     }

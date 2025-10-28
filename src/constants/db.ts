@@ -289,18 +289,6 @@ export const departments: DbTable = {
         onUpdate: 'CASCADE'
       }
     },
-    manager: {
-      name: 'managerId',
-      completeName: 'departments.managerId',
-      type: 'number',
-      nullable: true,
-      foreignKey: {
-        table: 'users',
-        column: 'userId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
-    },
     owner: {
       name: 'ownerId',
       completeName: 'departments.ownerId',
@@ -2653,7 +2641,7 @@ export interface DbTable {
   columns: { [key: string]: DbColumn }
 }
 
-interface DbColumn {
+export interface DbColumn {
   name: string
   completeName: string
   type: string

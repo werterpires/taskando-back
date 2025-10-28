@@ -1,16 +1,10 @@
-import {
-  ForbiddenException,
-  GoneException,
-  Injectable,
-  NotFoundException,
-  UnauthorizedException
-} from '@nestjs/common'
-import { AuthRepo } from './auth.repo'
+import { Injectable, UnauthorizedException } from '@nestjs/common'
+import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcrypt'
 import { CustomErrors } from '../custom-error-handler/erros.enum'
-import { UserPayload, UserToken, ValidateUser } from './types'
-import { JwtService } from '@nestjs/jwt'
 import { EncryptionService } from '../utils-module/encryption/encryption.service'
+import { AuthRepo } from './auth.repo'
+import { UserPayload, UserToken, ValidateUser } from './types'
 
 @Injectable()
 export class AuthService {
@@ -24,15 +18,20 @@ export class AuthService {
     const user: ValidateUser | undefined =
       await this.authRepo.findUserByEmailForLogin(email)
 
+    console.log('validated user 0:', user)
+
     if (user && user.userId > 0) {
       const isPasswordValid = await bcrypt.compare(password, user.password)
+      console.log('is password valid:', isPasswordValid)
 
       if (!isPasswordValid) {
         throw new UnauthorizedException(CustomErrors.UNAUTHORIZED_EXCEPTION)
       }
 
-      user.firstName = this.encryptionService.decrypt(user.firstName)
-      user.lastName = this.encryptionService.decrypt(user.lastName)
+      user.firstName = this.encryptionService.decrypt(user.firstName || '')
+      user.lastName = this.encryptionService.decrypt(user.lastName || '')
+
+      console.log('validated user:', user)
 
       return {
         ...user,
@@ -42,12 +41,12 @@ export class AuthService {
     throw new Error(CustomErrors.UNAUTHORIZED_EXCEPTION)
   }
 
-  async login(user: ValidateUser): Promise<UserToken> {
+  login(user: ValidateUser): UserToken {
     const payload: UserPayload = {
       sub: user.userId,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName
+      firstName: user.firstName || '',
+      lastName: user.lastName || ''
     }
     const jwtToken = this.jwtService.sign(payload)
     return { accessToken: jwtToken }

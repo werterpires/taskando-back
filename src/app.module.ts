@@ -10,9 +10,9 @@ import { UsersModule } from './users/users.module'
 import { JwtAuthGuard } from './shared/auth/guards/jwt-auth.guard'
 import { config } from 'dotenv'
 import { AuthModule } from './shared/auth/auth.module'
-import { LocalAuthGuard } from './shared/auth/guards/local-auth.guard'
 import { OrganizationsModule } from './organizations/organizations.module'
-import { OrganizationsMembersModule } from './organizations-members/organizations-members.module';
+import { OrganizationsMembersModule } from './organizations-members/organizations-members.module'
+import { DepartmentsModule } from './departments/departments.module'
 
 config()
 
@@ -68,7 +68,8 @@ const knex = KnexModule.forRoot(
     UsersModule,
     AuthModule,
     OrganizationsModule,
-    OrganizationsMembersModule
+    OrganizationsMembersModule,
+    DepartmentsModule
   ],
   controllers: [],
   providers: [

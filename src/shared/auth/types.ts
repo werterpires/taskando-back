@@ -2,8 +2,8 @@ export interface ValidateUser {
   password: string
   userId: number
   email: string
-  firstName: string
-  lastName: string
+  firstName: string | null
+  lastName: string | null
 }
 
 export interface UserToken {
