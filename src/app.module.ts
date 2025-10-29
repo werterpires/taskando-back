@@ -13,6 +13,7 @@ import { AuthModule } from './shared/auth/auth.module'
 import { OrganizationsModule } from './organizations/organizations.module'
 import { OrganizationsMembersModule } from './organizations-members/organizations-members.module'
 import { DepartmentsModule } from './departments/departments.module'
+import { TeamsModule } from './teams/teams.module';
 
 config()
 
@@ -69,7 +70,8 @@ const knex = KnexModule.forRoot(
     AuthModule,
     OrganizationsModule,
     OrganizationsMembersModule,
-    DepartmentsModule
+    DepartmentsModule,
+    TeamsModule
   ],
   controllers: [],
   providers: [

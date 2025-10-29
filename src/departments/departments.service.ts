@@ -8,6 +8,7 @@ import { ValidateUser } from '../shared/auth/types'
 import { Paginator } from '../shared/types/paginator.types'
 import { Response } from '../shared/types/response.types'
 import { Department } from './types'
+import { TeamsRepo } from '../teams/teams.repo'
 
 @Injectable()
 export class DepartmentsService {
@@ -39,7 +40,8 @@ export class DepartmentsService {
   }
   constructor(
     private readonly departmentsRepo: DepartmentsRepo,
-    private readonly departmentsHelper: DepartmentsHelper
+    private readonly departmentsHelper: DepartmentsHelper,
+    private readonly teamsRepo: TeamsRepo
   ) {}
 
   async create(
@@ -91,7 +93,17 @@ export class DepartmentsService {
     deptId: number,
     currentUser: ValidateUser
   ): Promise<Department | null> {
-    return await this.departmentsRepo.getById(deptId, currentUser.userId)
+    const dept = await this.departmentsRepo.getById(deptId, currentUser.userId)
+    if (!dept) return null
+
+    // Buscar teams diretos do departamento visíveis ao usuário atual
+    const teams = await this.teamsRepo.getAllByDeptIdAndUser(
+      deptId,
+      currentUser.userId,
+      { limit: 20, offset: 0, orderBy: 'teamId', direction: 'ASC' }
+    )
+
+    return { ...dept, teams }
   }
 
   async update(

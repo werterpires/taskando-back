@@ -167,7 +167,7 @@ export const organizations: DbTable = {
   columns: {
     id: {
       name: 'orgId',
-      completeName: 'organizations.orgId',
+      completeName: 'organizations.org_id',
       type: 'number',
       primary: true,
       nullable: false
@@ -233,7 +233,7 @@ export const organizationMembers: DbTable = {
     },
     orgId: {
       name: 'orgId',
-      completeName: 'organizationMembers.orgId',
+      completeName: 'organization_members.org_id',
       type: 'number',
       nullable: false,
       foreignKey: {
@@ -265,7 +265,7 @@ export const departments: DbTable = {
   columns: {
     id: {
       name: 'deptId',
-      completeName: 'departments.deptId',
+      completeName: 'departments.dept_id',
       type: 'number',
       primary: true,
       nullable: false
@@ -279,7 +279,7 @@ export const departments: DbTable = {
     },
     organization: {
       name: 'orgId',
-      completeName: 'departments.orgId',
+      completeName: 'departments.org_id',
       type: 'number',
       nullable: true,
       foreignKey: {
@@ -321,7 +321,7 @@ export const departmentMembers: DbTable = {
     },
     departmentId: {
       name: 'deptId',
-      completeName: 'departmentMembers.deptId',
+      completeName: 'department_members.dept_id',
       type: 'number',
       nullable: false,
       foreignKey: {
@@ -364,18 +364,6 @@ export const teams: DbTable = {
       type: 'string',
       length: 255,
       nullable: false
-    },
-    leader: {
-      name: 'leaderId',
-      completeName: 'teams.leaderId',
-      type: 'number',
-      nullable: true,
-      foreignKey: {
-        table: 'users',
-        column: 'userId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
     },
     department: {
       name: 'deptId',

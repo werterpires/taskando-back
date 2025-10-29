@@ -78,7 +78,7 @@ export class DepartmentsRepo {
               .select('*')
               .from(departmentMembers.name)
               .whereRaw(
-                `${this.departmentMembersColumns.deptId.completeName} = ${this.columns.id.completeName}`
+                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.id.completeName}`
               )
               .andWhere(
                 this.departmentMembersColumns.userId.completeName,
@@ -151,7 +151,7 @@ export class DepartmentsRepo {
               .select('*')
               .from(departmentMembers.name)
               .whereRaw(
-                `${this.departmentMembersColumns.deptId.completeName} = ${this.columns.id.completeName}`
+                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.id.completeName}`
               )
               .andWhere(
                 this.departmentMembersColumns.userId.completeName,
@@ -252,7 +252,7 @@ export class DepartmentsRepo {
               .select('*')
               .from(departmentMembers.name)
               .whereRaw(
-                `${this.departmentMembersColumns.deptId.completeName} = ${this.columns.id.completeName}`
+                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.id.completeName}`
               )
               .andWhere(
                 this.departmentMembersColumns.userId.completeName,
@@ -390,10 +390,10 @@ export class DepartmentsRepo {
   ): Promise<Department[]> {
     const departmentsDB = await this.knex(departments.name)
       .distinct([
-        `${this.columns.id.completeName} as deptId`,
-        `${this.columns.name.completeName} as name`,
-        `${this.columns.organization.completeName} as orgId`,
-        `${this.columns.owner.completeName} as ownerId`
+        `${this.columns.id.completeName}`,
+        `${this.columns.name.completeName}`,
+        `${this.columns.organization.completeName}`,
+        `${this.columns.owner.completeName}`
       ])
       .where(this.columns.organization.completeName, orgId)
       .andWhere((builder) => {
@@ -404,7 +404,7 @@ export class DepartmentsRepo {
               .select('*')
               .from(departmentMembers.name)
               .whereRaw(
-                `${this.departmentMembersColumns.deptId.completeName} = ${this.columns.id.completeName}`
+                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.id.completeName}`
               )
               .andWhere(
                 this.departmentMembersColumns.userId.completeName,

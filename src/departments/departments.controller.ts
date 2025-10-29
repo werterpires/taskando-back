@@ -48,6 +48,18 @@ export class DepartmentsController {
     return this.departmentsService.getAll(currentUser, paginator)
   }
 
+  @Get('organization/:orgId')
+  findAllByOrgId(
+    @Param('orgId', ParseIntPipe) orgId: number,
+    @CurrentUser() currentUser: ValidateUser,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset: number,
+    @Query('direction', new DefaultValuePipe('ASC')) direction: string
+  ) {
+    const paginator: Paginator = { limit, offset, orderBy: 'deptId', direction }
+    return this.departmentsService.findAllByOrgId(orgId, currentUser, paginator)
+  }
+
   @Get(':id')
   findOne(
     @Param('id', ParseIntPipe) id: number,
