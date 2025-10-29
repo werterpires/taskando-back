@@ -176,7 +176,7 @@ export class TeamsRepo {
               .select('*')
               .from(departmentMembers.name)
               .whereRaw(
-                `${this.departmentMembersColumns.deptId.completeName} = ${this.columns.department.completeName}`
+                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.department.completeName}`
               )
               .andWhere(
                 this.departmentMembersColumns.userId.completeName,
@@ -198,28 +198,28 @@ export class TeamsRepo {
     // Buscar o team com todas as informações
     const result = await this.knex(teams.name)
       .select([
-        this.columns.id.completeName,
-        this.columns.name.completeName,
-        this.columns.department.completeName,
-        this.columns.organization.completeName,
-        this.columns.owner.completeName,
+        `${this.columns.id.completeName} as teamId`,
+        `${this.columns.name.completeName} as teamName`,
+        `${this.columns.department.completeName} as deptId`,
+        `${this.columns.organization.completeName} as orgId`,
+        `${this.columns.owner.completeName} as ownerId`,
         // Owner user data
-        this.usersColumns.id.completeName,
-        this.usersColumns.email.completeName,
-        this.usersColumns.firstName.completeName,
-        this.usersColumns.lastName.completeName,
+        `${this.usersColumns.id.completeName} as ownerUserId`,
+        `${this.usersColumns.email.completeName} as ownerEmail`,
+        `${this.usersColumns.firstName.completeName} as ownerFirstName`,
+        `${this.usersColumns.lastName.completeName} as ownerLastName`,
         // Organization data
-        this.organizationsColumns.id.completeName,
-        this.organizationsColumns.name.completeName,
-        this.organizationsColumns.cnpj.completeName,
-        this.organizationsColumns.address.completeName,
-        this.organizationsColumns.phone.completeName,
-        this.organizationsColumns.owner.completeName,
+        `${this.organizationsColumns.id.completeName} as orgIdFull`,
+        `${this.organizationsColumns.name.completeName} as orgName`,
+        `${this.organizationsColumns.cnpj.completeName} as orgCnpj`,
+        `${this.organizationsColumns.address.completeName} as orgAddress`,
+        `${this.organizationsColumns.phone.completeName} as orgPhone`,
+        `${this.organizationsColumns.owner.completeName} as orgOwnerId`,
         // Department data
-        this.departmentsColumns.id.completeName,
-        this.departmentsColumns.name.completeName,
-        this.departmentsColumns.organization.completeName,
-        this.departmentsColumns.owner.completeName
+        `${this.departmentsColumns.id.completeName} as deptIdFull`,
+        `${this.departmentsColumns.name.completeName} as deptName`,
+        `${this.departmentsColumns.organization.completeName} as deptOrgId`,
+        `${this.departmentsColumns.owner.completeName} as deptOwnerId`
       ])
       .leftJoin(
         users.name,
@@ -242,38 +242,38 @@ export class TeamsRepo {
     if (!result) return null
 
     const team: Team = {
-      teamId: result.deptId,
-      name: result.name,
+      teamId: result.teamId,
+      name: result.teamName,
       deptId: result.deptId,
       orgId: result.orgId,
       ownerId: result.ownerId,
       owner: {
-        userId: result.userId,
-        email: result.email,
-        firstName: result.firstName,
-        lastName: result.lastName
+        userId: result.ownerUserId,
+        email: result.ownerEmail,
+        firstName: result.ownerFirstName,
+        lastName: result.ownerLastName
       }
     }
 
     // Adicionar organization se existir
-    if (result.orgId) {
+    if (result.orgIdFull) {
       team.organization = {
-        orgId: result.orgId,
-        name: result.name,
-        cnpj: result.cnpj,
-        address: result.address,
-        phone: result.phone,
-        ownerId: result.ownerId
+        orgId: result.orgIdFull,
+        name: result.orgName,
+        cnpj: result.orgCnpj,
+        address: result.orgAddress,
+        phone: result.orgPhone,
+        ownerId: result.orgOwnerId
       }
     }
 
     // Adicionar department se existir
-    if (result.deptId) {
+    if (result.deptIdFull) {
       team.department = {
-        deptId: result.deptId,
-        name: result.name,
-        orgId: result.orgId,
-        ownerId: result.ownerId
+        deptId: result.deptIdFull,
+        name: result.deptName,
+        orgId: result.deptOrgId,
+        ownerId: result.deptOwnerId
       }
     }
 
@@ -375,7 +375,7 @@ export class TeamsRepo {
               .select('*')
               .from(departmentMembers.name)
               .whereRaw(
-                `${this.departmentMembersColumns.deptId.completeName} = ${this.columns.department.completeName}`
+                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.department.completeName}`
               )
               .andWhere(
                 this.departmentMembersColumns.userId.completeName,
@@ -479,7 +479,7 @@ export class TeamsRepo {
               .select('*')
               .from(departmentMembers.name)
               .whereRaw(
-                `${this.departmentMembersColumns.deptId.completeName} = ${this.columns.department.completeName}`
+                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.department.completeName}`
               )
               .andWhere(
                 this.departmentMembersColumns.userId.completeName,

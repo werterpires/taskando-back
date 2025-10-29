@@ -291,7 +291,7 @@ export const departments: DbTable = {
     },
     owner: {
       name: 'ownerId',
-      completeName: 'departments.ownerId',
+      completeName: 'departments.owner_id',
       type: 'number',
       nullable: false,
       foreignKey: {
@@ -309,7 +309,7 @@ export const departmentMembers: DbTable = {
   columns: {
     userId: {
       name: 'userId',
-      completeName: 'departmentMembers.userId',
+      completeName: 'departmentMembers.user_id',
       type: 'number',
       nullable: false,
       foreignKey: {
@@ -333,14 +333,14 @@ export const departmentMembers: DbTable = {
     },
     role: {
       name: 'role',
-      completeName: 'departmentMembers.role',
+      completeName: 'department_members.role',
       type: 'string',
       length: 100,
       nullable: false
     },
     active: {
       name: 'active',
-      completeName: 'departmentMembers.active',
+      completeName: 'department_members.active',
       type: 'boolean',
       nullable: false,
       default: true
@@ -353,7 +353,7 @@ export const teams: DbTable = {
   columns: {
     id: {
       name: 'teamId',
-      completeName: 'teams.teamId',
+      completeName: 'teams.team_id',
       type: 'number',
       primary: true,
       nullable: false
@@ -367,7 +367,7 @@ export const teams: DbTable = {
     },
     department: {
       name: 'deptId',
-      completeName: 'teams.deptId',
+      completeName: 'teams.dept_id',
       type: 'number',
       nullable: true,
       foreignKey: {
@@ -379,7 +379,7 @@ export const teams: DbTable = {
     },
     organization: {
       name: 'orgId',
-      completeName: 'teams.orgId',
+      completeName: 'teams.org_id',
       type: 'number',
       nullable: true,
       foreignKey: {
@@ -391,7 +391,7 @@ export const teams: DbTable = {
     },
     owner: {
       name: 'ownerId',
-      completeName: 'teams.ownerId',
+      completeName: 'teams.owner_id',
       type: 'number',
       nullable: false,
       foreignKey: {
@@ -409,7 +409,7 @@ export const teamMembers: DbTable = {
   columns: {
     userId: {
       name: 'userId',
-      completeName: 'teamMembers.userId',
+      completeName: 'team_members.user_id',
       type: 'number',
       nullable: false,
       foreignKey: {
@@ -421,7 +421,7 @@ export const teamMembers: DbTable = {
     },
     teamId: {
       name: 'teamId',
-      completeName: 'teamMembers.teamId',
+      completeName: 'team_members.team_id',
       type: 'number',
       nullable: false,
       foreignKey: {
@@ -433,14 +433,14 @@ export const teamMembers: DbTable = {
     },
     role: {
       name: 'role',
-      completeName: 'teamMembers.role',
+      completeName: 'team_members.role',
       type: 'string',
       length: 100,
       nullable: false
     },
     active: {
       name: 'active',
-      completeName: 'teamMembers.active',
+      completeName: 'team_members.active',
       type: 'boolean',
       nullable: false,
       default: true
