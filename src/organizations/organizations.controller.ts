@@ -35,7 +35,7 @@ export class OrganizationsController {
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset: number,
     @Query('orderBy', new DefaultValuePipe('orgId')) orderBy: string,
-    @Query('direction', new DefaultValuePipe('ASC')) direction: string
+    @Query('direction', new DefaultValuePipe('ASC')) direction: 'ASC' | 'DESC'
   ) {
     const paginator: Paginator = { limit, offset, orderBy, direction }
     return this.organizationsService.getAll(currentUser, paginator)

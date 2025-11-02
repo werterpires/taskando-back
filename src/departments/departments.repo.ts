@@ -1,367 +1,311 @@
 import { Injectable } from '@nestjs/common'
-import { InjectConnection } from 'nest-knexjs'
-import { Knex } from 'knex'
-import { CreateDepartmentData, Department } from './types'
-import {
-  departments,
-  users,
-  organizations,
-  organizationMembers,
-  departmentMembers
-} from '../constants/db'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
+import { CreateDepartmentData, Department as DepartmentType } from './types'
+import { Department } from './entities/department.entity'
+import { DepartmentMember } from './entities/department-member.entity'
+import { Organization } from '../organizations/entities/organization.entity'
+import { OrganizationMember } from '../organizations-members/entities/organization-member.entity'
 import { Paginator } from '../shared/types/paginator.types'
 import { userRoleEnum } from 'src/constants/roles.enum'
 
 @Injectable()
 export class DepartmentsRepo {
-  private columns = departments.columns
-  private usersColumns = users.columns
-  private organizationsColumns = organizations.columns
-  private organizationMembersColumns = organizationMembers.columns
-  private departmentMembersColumns = departmentMembers.columns
-
-  constructor(@InjectConnection('knexx') private readonly knex: Knex) {}
+  constructor(
+    @InjectRepository(Department)
+    private readonly departmentRepository: Repository<Department>,
+    @InjectRepository(DepartmentMember)
+    private readonly departmentMemberRepository: Repository<DepartmentMember>,
+    @InjectRepository(Organization)
+    private readonly organizationRepository: Repository<Organization>,
+    @InjectRepository(OrganizationMember)
+    private readonly organizationMemberRepository: Repository<OrganizationMember>
+  ) {}
 
   async canUserCreateDepartmentInOrg(
     userId: number,
     orgId: number
   ): Promise<boolean> {
     // Verificar se é owner da organization
-    const isOwner = await this.knex(organizations.name)
-      .select(this.organizationsColumns.id.name)
-      .where(this.organizationsColumns.id.name, orgId)
-      .andWhere(this.organizationsColumns.owner.name, userId)
-      .first()
+    const isOwner = await this.organizationRepository.findOne({
+      where: { orgId, ownerId: userId },
+      select: ['orgId']
+    })
 
     if (isOwner) return true
 
     // Verificar se é LEADER ou EDITOR da organization
-    const memberRole = await this.knex(organizationMembers.name)
-      .select(this.organizationMembersColumns.role.name)
-      .where(this.organizationMembersColumns.userId.name, userId)
-      .andWhere(this.organizationMembersColumns.orgId.name, orgId)
-      .first()
+    const memberRole = await this.organizationMemberRepository.findOne({
+      where: { userId, orgId },
+      select: ['role']
+    })
 
     if (!memberRole) return false
 
-    const role = memberRole[this.organizationMembersColumns.role.name]
-    return role == userRoleEnum.LEADER || role === userRoleEnum.EDITOR
+    const role = memberRole.role
+    return role === 'LEADER' || role === 'EDITOR'
   }
 
   async createDepartment(
     createDepartmentData: CreateDepartmentData
-  ): Promise<number[]> {
-    return await this.knex(departments.name).insert(createDepartmentData)
+  ): Promise<Department> {
+    const department = this.departmentRepository.create(createDepartmentData)
+    return await this.departmentRepository.save(department)
   }
 
   async getAllByUserIdOrMember(
     userId: number,
     paginator: Paginator
-  ): Promise<Department[]> {
-    // Buscar departamentos únicos onde:
-    // a) o usuário é owner do departamento OU é membro direto (LEADER, EDITOR, REVIEWER, EXECUTOR, CONTRIBUTOR ou WATCHER)
-    // b) o departamento pertence a uma org onde o usuário é OWNER, LEADER, EDITOR, REVIEWER, EXECUTOR ou CONTRIBUTOR
-    const departmentsDB = await this.knex(departments.name)
-      .distinct([
-        `${this.columns.id.completeName} as deptId`,
-        `${this.columns.name.completeName} as name`,
-        `${this.columns.organization.completeName} as orgId`,
-        `${this.columns.owner.completeName} as ownerId`
-      ])
-      .where((builder) => {
-        // Condição A1: Usuário é owner do departamento
-        builder
-          .where(this.columns.owner.completeName, userId)
-          // Condição A2: Usuário é membro direto do departamento
-          .orWhereExists((subquery) => {
-            subquery
-              .select('*')
-              .from(departmentMembers.name)
-              .whereRaw(
-                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.id.completeName}`
-              )
-              .andWhere(
-                this.departmentMembersColumns.userId.completeName,
-                userId
-              )
-              .whereIn(this.departmentMembersColumns.role.completeName, [
-                userRoleEnum.LEADER,
-                userRoleEnum.EDITOR,
-                userRoleEnum.REVIEWER,
-                userRoleEnum.EXECUTOR,
-                userRoleEnum.CONTRIBUTOR,
-                userRoleEnum.WATCHER
-              ])
-          })
-          // Condição B: Departamento pertence a org onde usuário tem role adequado
-          .orWhereExists((subquery) => {
-            subquery
-              .select('*')
-              .from(organizationMembers.name)
-              .whereRaw(
-                `${this.organizationMembersColumns.orgId.completeName} = ${this.columns.organization.completeName}`
-              )
-              .andWhere(
-                this.organizationMembersColumns.userId.completeName,
-                userId
-              )
-              .whereIn(this.organizationMembersColumns.role.completeName, [
-                userRoleEnum.LEADER,
-                userRoleEnum.EDITOR,
-                userRoleEnum.REVIEWER,
-                userRoleEnum.EXECUTOR,
-                userRoleEnum.CONTRIBUTOR
-              ])
-          })
-          // Condição B2: Departamento pertence a org onde usuário é owner
-          .orWhere((subBuilder) => {
-            subBuilder
-              .whereExists((subquery) => {
-                subquery
-                  .select('*')
-                  .from(organizations.name)
-                  .whereRaw(
-                    `${this.organizationsColumns.id.completeName} = ${this.columns.organization.completeName}`
-                  )
-                  .andWhere(
-                    this.organizationsColumns.owner.completeName,
-                    userId
-                  )
-              })
-              .whereNotNull(this.columns.organization.completeName)
-          })
-      })
-      .orderBy(`${this.columns.id.completeName}`, paginator.direction)
-      .limit(paginator.limit)
-      .offset(paginator.offset)
+  ): Promise<DepartmentType[]> {
+    const queryBuilder = this.departmentRepository.createQueryBuilder('dept')
 
-    return departmentsDB as Department[]
+    queryBuilder
+      .select(['dept.deptId', 'dept.name', 'dept.orgId', 'dept.ownerId'])
+      .where('dept.ownerId = :userId', { userId })
+      .orWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from(DepartmentMember, 'dm')
+          .where('dm.departmentId = dept.deptId')
+          .andWhere('dm.userId = :userId')
+          .andWhere('dm.role IN (:...roles)')
+          .getQuery()
+        return `EXISTS (${subQuery})`
+      })
+      .orWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from(OrganizationMember, 'om')
+          .where('om.orgId = dept.orgId')
+          .andWhere('om.userId = :userId')
+          .andWhere('om.role IN (:...orgRoles)')
+          .getQuery()
+        return `EXISTS (${subQuery})`
+      })
+      .orWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from(Organization, 'org')
+          .where('org.orgId = dept.orgId')
+          .andWhere('org.ownerId = :userId')
+          .getQuery()
+        return `EXISTS (${subQuery})`
+      })
+      .setParameters({
+        userId,
+        roles: [
+          userRoleEnum.LEADER,
+          userRoleEnum.EDITOR,
+          userRoleEnum.REVIEWER,
+          userRoleEnum.EXECUTOR,
+          userRoleEnum.CONTRIBUTOR,
+          userRoleEnum.WATCHER
+        ],
+        orgRoles: [
+          userRoleEnum.LEADER,
+          userRoleEnum.EDITOR,
+          userRoleEnum.REVIEWER,
+          userRoleEnum.EXECUTOR,
+          userRoleEnum.CONTRIBUTOR
+        ]
+      })
+      .orderBy('dept.deptId', paginator.direction as 'ASC' | 'DESC')
+      .skip(paginator.offset)
+      .take(paginator.limit)
+
+    const departments = await queryBuilder.getMany()
+
+    return departments.map((dept) => ({
+      deptId: dept.deptId,
+      name: dept.name,
+      orgId: dept.orgId,
+      ownerId: dept.ownerId
+    }))
   }
 
   async countByUserIdOrMember(userId: number): Promise<number> {
-    const result = await this.knex(departments.name)
-      .countDistinct(`${this.columns.id.completeName} as total`)
-      .where((builder) => {
-        // Condição A1: Usuário é owner do departamento
-        builder
-          .where(this.columns.owner.completeName, userId)
-          // Condição A2: Usuário é membro direto do departamento
-          .orWhereExists((subquery) => {
-            subquery
-              .select('*')
-              .from(departmentMembers.name)
-              .whereRaw(
-                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.id.completeName}`
-              )
-              .andWhere(
-                this.departmentMembersColumns.userId.completeName,
-                userId
-              )
-              .whereIn(this.departmentMembersColumns.role.completeName, [
-                userRoleEnum.LEADER,
-                userRoleEnum.EDITOR,
-                userRoleEnum.REVIEWER,
-                userRoleEnum.EXECUTOR,
-                userRoleEnum.CONTRIBUTOR,
-                userRoleEnum.WATCHER
-              ])
-          })
-          // Condição B: Departamento pertence a org onde usuário tem role adequado
-          .orWhereExists((subquery) => {
-            subquery
-              .select('*')
-              .from(organizationMembers.name)
-              .whereRaw(
-                `${this.organizationMembersColumns.orgId.completeName} = ${this.columns.organization.completeName}`
-              )
-              .andWhere(
-                this.organizationMembersColumns.userId.completeName,
-                userId
-              )
-              .whereIn(this.organizationMembersColumns.role.completeName, [
-                userRoleEnum.LEADER,
-                userRoleEnum.EDITOR,
-                userRoleEnum.REVIEWER,
-                userRoleEnum.EXECUTOR,
-                userRoleEnum.CONTRIBUTOR
-              ])
-          })
-          // Condição B2: Departamento pertence a org onde usuário é owner
-          .orWhere((subBuilder) => {
-            subBuilder
-              .whereExists((subquery) => {
-                subquery
-                  .select('*')
-                  .from(organizations.name)
-                  .whereRaw(
-                    `${this.organizationsColumns.id.completeName} = ${this.columns.organization.completeName}`
-                  )
-                  .andWhere(
-                    this.organizationsColumns.owner.completeName,
-                    userId
-                  )
-              })
-              .whereNotNull(this.columns.organization.completeName)
-          })
-      })
-      .first()
+    const queryBuilder = this.departmentRepository.createQueryBuilder('dept')
 
-    if (!result) return 0
-    return parseInt(result.total as string, 10)
+    const count = await queryBuilder
+      .where('dept.ownerId = :userId', { userId })
+      .orWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from(DepartmentMember, 'dm')
+          .where('dm.departmentId = dept.deptId')
+          .andWhere('dm.userId = :userId')
+          .andWhere('dm.role IN (:...roles)')
+          .getQuery()
+        return `EXISTS (${subQuery})`
+      })
+      .orWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from(OrganizationMember, 'om')
+          .where('om.orgId = dept.orgId')
+          .andWhere('om.userId = :userId')
+          .andWhere('om.role IN (:...orgRoles)')
+          .getQuery()
+        return `EXISTS (${subQuery})`
+      })
+      .orWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from(Organization, 'org')
+          .where('org.orgId = dept.orgId')
+          .andWhere('org.ownerId = :userId')
+          .getQuery()
+        return `EXISTS (${subQuery})`
+      })
+      .setParameters({
+        userId,
+        roles: [
+          userRoleEnum.LEADER,
+          userRoleEnum.EDITOR,
+          userRoleEnum.REVIEWER,
+          userRoleEnum.EXECUTOR,
+          userRoleEnum.CONTRIBUTOR,
+          userRoleEnum.WATCHER
+        ],
+        orgRoles: [
+          userRoleEnum.LEADER,
+          userRoleEnum.EDITOR,
+          userRoleEnum.REVIEWER,
+          userRoleEnum.EXECUTOR,
+          userRoleEnum.CONTRIBUTOR
+        ]
+      })
+      .getCount()
+
+    return count
   }
 
   async getAllByOwnerId(
     userId: number,
     paginator: Paginator
-  ): Promise<Department[]> {
-    return await this.knex(departments.name)
-      .select([
-        this.columns.id.name,
-        this.columns.name.name,
-        this.columns.organization.name,
-        this.columns.owner.name
-      ])
-      .where(this.columns.owner.name, userId)
-      .orderBy(paginator.orderBy, paginator.direction)
-      .limit(paginator.limit)
-      .offset(paginator.offset)
+  ): Promise<DepartmentType[]> {
+    const departments = await this.departmentRepository.find({
+      where: { ownerId: userId },
+      select: ['deptId', 'name', 'orgId', 'ownerId'],
+      order: { [paginator.orderBy]: paginator.direction },
+      skip: paginator.offset,
+      take: paginator.limit
+    })
+
+    return departments.map((dept) => ({
+      deptId: dept.deptId,
+      name: dept.name,
+      orgId: dept.orgId,
+      ownerId: dept.ownerId
+    }))
   }
 
   async countByOwnerId(userId: number): Promise<number> {
-    const result = await this.knex(departments.name)
-      .count('* as total')
-      .where(this.columns.owner.name, userId)
-      .first()
-
-    if (!result) return 0
-    return parseInt(result.total as string, 10)
+    return await this.departmentRepository.count({
+      where: { ownerId: userId }
+    })
   }
 
-  async getById(deptId: number, userId: number): Promise<Department | null> {
-    // Verificar se o usuário tem permissão para ver o department
-    const hasPermission = await this.knex(departments.name)
-      .select(this.columns.id.completeName)
-      .where(this.columns.id.completeName, deptId)
-      .andWhere((builder) => {
-        // Usuário é owner do departamento
-        builder
-          .where(this.columns.owner.completeName, userId)
-          // Usuário é membro do departamento (qualquer role)
-          .orWhereExists((subquery) => {
-            subquery
-              .select('*')
-              .from(departmentMembers.name)
-              .whereRaw(
-                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.id.completeName}`
-              )
-              .andWhere(
-                this.departmentMembersColumns.userId.completeName,
-                userId
-              )
+  async getById(
+    deptId: number,
+    userId: number
+  ): Promise<DepartmentType | null> {
+    // Verificar se o usuário tem permissão (versão simplificada)
+    const queryBuilder = this.departmentRepository.createQueryBuilder('dept')
+
+    const hasPermission = await queryBuilder
+      .where('dept.deptId = :deptId', { deptId })
+      .andWhere((qb) => {
+        qb.where('dept.ownerId = :userId', { userId })
+          .orWhere((subQb) => {
+            const subQuery = subQb
+              .subQuery()
+              .select('1')
+              .from(DepartmentMember, 'dm')
+              .where('dm.departmentId = :deptId')
+              .andWhere('dm.userId = :userId')
+              .getQuery()
+            return `EXISTS (${subQuery})`
           })
-          // Departamento pertence a org onde usuário tem role adequado
-          .orWhereExists((subquery) => {
-            subquery
-              .select('*')
-              .from(organizationMembers.name)
-              .whereRaw(
-                `${this.organizationMembersColumns.orgId.completeName} = ${this.columns.organization.completeName}`
-              )
-              .andWhere(
-                this.organizationMembersColumns.userId.completeName,
-                userId
-              )
-              .whereIn(this.organizationMembersColumns.role.completeName, [
-                userRoleEnum.LEADER,
-                userRoleEnum.EDITOR,
-                userRoleEnum.REVIEWER,
-                userRoleEnum.EXECUTOR,
-                userRoleEnum.CONTRIBUTOR
-              ])
+          .orWhere((subQb) => {
+            const subQuery = subQb
+              .subQuery()
+              .select('1')
+              .from(OrganizationMember, 'om')
+              .where('om.orgId = dept.orgId')
+              .andWhere('om.userId = :userId')
+              .andWhere('om.role IN (:...roles)')
+              .getQuery()
+            return `EXISTS (${subQuery})`
           })
-          // Departamento pertence a org onde usuário é owner
-          .orWhere((subBuilder) => {
-            subBuilder
-              .whereExists((subquery) => {
-                subquery
-                  .select('*')
-                  .from(organizations.name)
-                  .whereRaw(
-                    `${this.organizationsColumns.id.completeName} = ${this.columns.organization.completeName}`
-                  )
-                  .andWhere(
-                    this.organizationsColumns.owner.completeName,
-                    userId
-                  )
-              })
-              .whereNotNull(this.columns.organization.completeName)
+          .orWhere((subQb) => {
+            const subQuery = subQb
+              .subQuery()
+              .select('1')
+              .from(Organization, 'org')
+              .where('org.orgId = dept.orgId')
+              .andWhere('org.ownerId = :userId')
+              .getQuery()
+            return `EXISTS (${subQuery})`
           })
       })
-      .first()
+      .setParameters({
+        deptId,
+        userId,
+        roles: [
+          userRoleEnum.LEADER,
+          userRoleEnum.EDITOR,
+          userRoleEnum.REVIEWER,
+          userRoleEnum.EXECUTOR,
+          userRoleEnum.CONTRIBUTOR
+        ]
+      })
+      .getOne()
 
     if (!hasPermission) return null
 
-    // Buscar o department com todas as informações
-    const result = await this.knex(departments.name)
-      .select([
-        `${this.columns.id.completeName} as deptId`,
-        `${this.columns.name.completeName} as deptName`,
-        `${this.columns.organization.completeName} as orgId`,
-        `${this.columns.owner.completeName} as ownerId`,
-        // Owner user data
-        `${this.usersColumns.id.completeName} as ownerUserId`,
-        `${this.usersColumns.email.completeName} as ownerEmail`,
-        `${this.usersColumns.firstName.completeName} as ownerFirstName`,
-        `${this.usersColumns.lastName.completeName} as ownerLastName`,
-        // Organization data
-        `${this.organizationsColumns.id.completeName} as orgIdFull`,
-        `${this.organizationsColumns.name.completeName} as orgName`,
-        `${this.organizationsColumns.cnpj.completeName} as orgCnpj`,
-        `${this.organizationsColumns.address.completeName} as orgAddress`,
-        `${this.organizationsColumns.phone.completeName} as orgPhone`,
-        `${this.organizationsColumns.owner.completeName} as orgOwnerId`
-      ])
-      .leftJoin(
-        users.name,
-        this.columns.owner.completeName,
-        this.usersColumns.id.completeName
-      )
-      .leftJoin(
-        organizations.name,
-        this.columns.organization.completeName,
-        this.organizationsColumns.id.completeName
-      )
-      .where(this.columns.id.completeName, deptId)
-      .first()
+    // Buscar o department com relacionamentos
+    const department = await this.departmentRepository.findOne({
+      where: { deptId },
+      relations: ['owner', 'organization']
+    })
 
-    if (!result) return null
+    if (!department) return null
 
-    const department: Department = {
-      deptId: result.deptId,
-      name: result.deptName,
-      orgId: result.orgId,
-      ownerId: result.ownerId,
-      owner: {
-        userId: result.ownerUserId,
-        email: result.ownerEmail,
-        firstName: result.ownerFirstName,
-        lastName: result.ownerLastName
-      }
+    const result: DepartmentType = {
+      deptId: department.deptId,
+      name: department.name,
+      orgId: department.orgId,
+      ownerId: department.ownerId,
+      owner: department.owner
+        ? {
+            userId: department.owner.id,
+            email: department.owner.email,
+            firstName: department.owner.firstName,
+            lastName: department.owner.lastName
+          }
+        : undefined
     }
 
     // Adicionar organization se existir
-    if (result.orgIdFull) {
-      department.organization = {
-        orgId: result.orgIdFull,
-        name: result.orgName,
-        cnpj: result.orgCnpj,
-        address: result.orgAddress,
-        phone: result.orgPhone,
-        ownerId: result.orgOwnerId
+    if (department.organization) {
+      result.organization = {
+        orgId: department.organization.orgId,
+        name: department.organization.name,
+        cnpj: department.organization.cnpj,
+        address: department.organization.address,
+        phone: department.organization.phone,
+        ownerId: department.organization.ownerId
       }
     }
 
-    return department
+    return result
   }
 
   async updateDepartment(
@@ -369,96 +313,92 @@ export class DepartmentsRepo {
     updateData: Partial<CreateDepartmentData>,
     ownerId: number
   ): Promise<number> {
-    return await this.knex(departments.name)
-      .where(this.columns.id.name, deptId)
-      .andWhere(this.columns.owner.name, ownerId)
-      .update(updateData)
+    const result = await this.departmentRepository.update(
+      { deptId, ownerId },
+      updateData
+    )
+    return result.affected || 0
   }
 
   async deleteDepartment(deptId: number, ownerId: number): Promise<number> {
-    return await this.knex(departments.name)
-      .where(this.columns.id.name, deptId)
-      .andWhere(this.columns.owner.name, ownerId)
-      .del()
+    const result = await this.departmentRepository.delete({ deptId, ownerId })
+    return result.affected || 0
   }
 
-  //insira o novo método aqui
   async getAllByOrgIdAndUser(
     orgId: number,
     userId: number,
     paginator: Paginator
-  ): Promise<Department[]> {
-    const departmentsDB = await this.knex(departments.name)
-      .distinct([
-        `${this.columns.id.completeName}`,
-        `${this.columns.name.completeName}`,
-        `${this.columns.organization.completeName}`,
-        `${this.columns.owner.completeName}`
-      ])
-      .where(this.columns.organization.completeName, orgId)
-      .andWhere((builder) => {
-        builder
-          .where(this.columns.owner.completeName, userId)
-          .orWhereExists((subquery) => {
-            subquery
-              .select('*')
-              .from(departmentMembers.name)
-              .whereRaw(
-                `${this.departmentMembersColumns.departmentId.completeName} = ${this.columns.id.completeName}`
-              )
-              .andWhere(
-                this.departmentMembersColumns.userId.completeName,
-                userId
-              )
-              .whereIn(this.departmentMembersColumns.role.completeName, [
-                userRoleEnum.LEADER,
-                userRoleEnum.EDITOR,
-                userRoleEnum.REVIEWER,
-                userRoleEnum.EXECUTOR,
-                userRoleEnum.CONTRIBUTOR,
-                userRoleEnum.WATCHER
-              ])
+  ): Promise<DepartmentType[]> {
+    const queryBuilder = this.departmentRepository.createQueryBuilder('dept')
+
+    const departments = await queryBuilder
+      .select(['dept.deptId', 'dept.name', 'dept.orgId', 'dept.ownerId'])
+      .where('dept.orgId = :orgId', { orgId })
+      .andWhere((qb) => {
+        qb.where('dept.ownerId = :userId', { userId })
+          .orWhere((subQb) => {
+            const subQuery = subQb
+              .subQuery()
+              .select('1')
+              .from(DepartmentMember, 'dm')
+              .where('dm.departmentId = dept.deptId')
+              .andWhere('dm.userId = :userId')
+              .andWhere('dm.role IN (:...roles)')
+              .getQuery()
+            return `EXISTS (${subQuery})`
           })
-          .orWhereExists((subquery) => {
-            subquery
-              .select('*')
-              .from(organizationMembers.name)
-              .whereRaw(
-                `${this.organizationMembersColumns.orgId.completeName} = ${this.columns.organization.completeName}`
-              )
-              .andWhere(
-                this.organizationMembersColumns.userId.completeName,
-                userId
-              )
-              .whereIn(this.organizationMembersColumns.role.completeName, [
-                userRoleEnum.LEADER,
-                userRoleEnum.EDITOR,
-                userRoleEnum.REVIEWER,
-                userRoleEnum.EXECUTOR,
-                userRoleEnum.CONTRIBUTOR
-              ])
+          .orWhere((subQb) => {
+            const subQuery = subQb
+              .subQuery()
+              .select('1')
+              .from(OrganizationMember, 'om')
+              .where('om.orgId = :orgId')
+              .andWhere('om.userId = :userId')
+              .andWhere('om.role IN (:...orgRoles)')
+              .getQuery()
+            return `EXISTS (${subQuery})`
           })
-          .orWhere((subBuilder) => {
-            subBuilder
-              .whereExists((subquery) => {
-                subquery
-                  .select('*')
-                  .from(organizations.name)
-                  .whereRaw(
-                    `${this.organizationsColumns.id.completeName} = ${this.columns.organization.completeName}`
-                  )
-                  .andWhere(
-                    this.organizationsColumns.owner.completeName,
-                    userId
-                  )
-              })
-              .whereNotNull(this.columns.organization.completeName)
+          .orWhere((subQb) => {
+            const subQuery = subQb
+              .subQuery()
+              .select('1')
+              .from(Organization, 'org')
+              .where('org.orgId = :orgId')
+              .andWhere('org.ownerId = :userId')
+              .getQuery()
+            return `EXISTS (${subQuery})`
           })
       })
-      .orderBy(`${this.columns.id.completeName}`, paginator.direction)
-      .limit(paginator.limit)
-      .offset(paginator.offset)
+      .setParameters({
+        orgId,
+        userId,
+        roles: [
+          userRoleEnum.LEADER,
+          userRoleEnum.EDITOR,
+          userRoleEnum.REVIEWER,
+          userRoleEnum.EXECUTOR,
+          userRoleEnum.CONTRIBUTOR,
+          userRoleEnum.WATCHER
+        ],
+        orgRoles: [
+          userRoleEnum.LEADER,
+          userRoleEnum.EDITOR,
+          userRoleEnum.REVIEWER,
+          userRoleEnum.EXECUTOR,
+          userRoleEnum.CONTRIBUTOR
+        ]
+      })
+      .orderBy('dept.deptId', paginator.direction as 'ASC' | 'DESC')
+      .skip(paginator.offset)
+      .take(paginator.limit)
+      .getMany()
 
-    return departmentsDB as Department[]
+    return departments.map((dept) => ({
+      deptId: dept.deptId,
+      name: dept.name,
+      orgId: dept.orgId,
+      ownerId: dept.ownerId
+    }))
   }
 }

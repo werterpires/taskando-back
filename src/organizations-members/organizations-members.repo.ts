@@ -1,28 +1,33 @@
 import { Injectable } from '@nestjs/common'
-import { InjectConnection } from 'nest-knexjs'
-import { Knex } from 'knex'
-import { users, organizations, organizationMembers } from '../constants/db'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository, DataSource } from 'typeorm'
 import { CreateUserData } from 'src/users/types'
-import { OrganizationMember } from './types'
+import { OrganizationMember as OrganizationMemberType } from './types'
+import { OrganizationMember } from './entities/organization-member.entity'
+import { User } from '../users/entities/user.entity'
+import { Organization } from '../organizations/entities/organization.entity'
 
 @Injectable()
 export class OrganizationsMembersRepo {
-  private usersColumns = users.columns
-  private organizationsColumns = organizations.columns
-  private organizationMembersColumns = organizationMembers.columns
-
-  constructor(@InjectConnection('knexx') private readonly knex: Knex) {}
+  constructor(
+    @InjectRepository(OrganizationMember)
+    private readonly organizationMemberRepository: Repository<OrganizationMember>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(Organization)
+    private readonly organizationRepository: Repository<Organization>,
+    private readonly dataSource: DataSource
+  ) {}
 
   async isUserOwnerOfOrganization(
     userId: number,
     orgId: number
   ): Promise<boolean> {
     console.log('userId, orgId', userId, orgId)
-    const result = await this.knex(organizations.name)
-      .select(this.organizationsColumns.id.completeName)
-      .where(this.organizationsColumns.id.completeName, orgId)
-      .andWhere(this.organizationsColumns.owner.completeName, userId)
-      .first()
+    const result = await this.organizationRepository.findOne({
+      where: { orgId, ownerId: userId },
+      select: ['orgId']
+    })
 
     return !!result
   }
@@ -31,12 +36,10 @@ export class OrganizationsMembersRepo {
     userId: number,
     orgId: number
   ): Promise<boolean> {
-    const result = await this.knex(organizationMembers.name)
-      .select(this.organizationMembersColumns.userId.completeName)
-      .where(this.organizationMembersColumns.userId.completeName, userId)
-      .andWhere(this.organizationMembersColumns.orgId.completeName, orgId)
-      .andWhere(this.organizationMembersColumns.role.completeName, 'leader')
-      .first()
+    const result = await this.organizationMemberRepository.findOne({
+      where: { userId, orgId, role: 'leader' },
+      select: ['userId']
+    })
 
     return !!result
   }
@@ -45,19 +48,21 @@ export class OrganizationsMembersRepo {
     userData: CreateUserData & { inviteCode: string },
     memberData: { orgId: number; role: string }
   ): Promise<number> {
-    return await this.knex.transaction(async (trx) => {
+    return await this.dataSource.transaction(async (entityManager) => {
       // Criar usuário
-      const [userId] = await trx(users.name).insert(userData)
+      const user = entityManager.create(User, userData)
+      const savedUser = await entityManager.save(user)
 
       // Adicionar usuário como membro da organização
-      await trx(organizationMembers.name).insert({
-        [this.organizationMembersColumns.userId.completeName]: userId,
-        [this.organizationMembersColumns.orgId.completeName]: memberData.orgId,
-        [this.organizationMembersColumns.role.completeName]: memberData.role,
-        [this.organizationMembersColumns.active.completeName]: false
+      const organizationMember = entityManager.create(OrganizationMember, {
+        userId: savedUser.id,
+        orgId: memberData.orgId,
+        role: memberData.role,
+        active: false
       })
+      await entityManager.save(organizationMember)
 
-      return userId
+      return savedUser.id
     })
   }
 
@@ -65,11 +70,10 @@ export class OrganizationsMembersRepo {
     userId: number,
     orgId: number
   ): Promise<boolean> {
-    const result = await this.knex(organizationMembers.name)
-      .select(this.organizationMembersColumns.userId.completeName)
-      .where(this.organizationMembersColumns.userId.completeName, userId)
-      .andWhere(this.organizationMembersColumns.orgId.completeName, orgId)
-      .first()
+    const result = await this.organizationMemberRepository.findOne({
+      where: { userId, orgId },
+      select: ['userId']
+    })
 
     return !!result
   }
@@ -78,12 +82,10 @@ export class OrganizationsMembersRepo {
     userId: number,
     orgId: number
   ): Promise<boolean> {
-    const result = await this.knex(organizationMembers.name)
-      .select(this.organizationMembersColumns.userId.completeName)
-      .where(this.organizationMembersColumns.userId.completeName, userId)
-      .andWhere(this.organizationMembersColumns.orgId.completeName, orgId)
-      .andWhere(this.organizationMembersColumns.active.completeName, true)
-      .first()
+    const result = await this.organizationMemberRepository.findOne({
+      where: { userId, orgId, active: true },
+      select: ['userId']
+    })
 
     return !!result
   }
@@ -92,95 +94,85 @@ export class OrganizationsMembersRepo {
     orgId: number,
     limit: number,
     offset: number
-  ): Promise<OrganizationMember[]> {
-    const members: OrganizationMember[] = await this.knex(
-      organizationMembers.name
-    )
-      .select([
-        this.organizationMembersColumns.userId.completeName,
-        this.organizationMembersColumns.orgId.completeName,
-        this.organizationMembersColumns.role.completeName,
-        this.organizationMembersColumns.active.completeName,
-        this.usersColumns.id.completeName,
-        this.usersColumns.email.completeName,
-        this.usersColumns.firstName.completeName,
-        this.usersColumns.lastName.completeName
-      ])
-      .leftJoin(
-        users.name,
-        this.organizationMembersColumns.userId.completeName,
-        this.usersColumns.id.completeName
-      )
-      .where(this.organizationMembersColumns.orgId.completeName, orgId)
-      .limit(limit)
-      .offset(offset)
+  ): Promise<OrganizationMemberType[]> {
+    // Buscar membros da organização
+    const members = await this.organizationMemberRepository.find({
+      where: { orgId },
+      relations: ['user'],
+      skip: offset,
+      take: limit
+    })
 
-    const owner = await this.knex(organizations.name)
-      .select(
-        this.organizationsColumns.owner.completeName,
-        this.organizationsColumns.id.completeName,
-        this.usersColumns.firstName.completeName,
-        this.usersColumns.lastName.completeName,
-        this.usersColumns.email.completeName,
-        this.usersColumns.id.completeName
-      )
-      .leftJoin(
-        users.name,
-        this.organizationsColumns.owner.completeName,
-        this.usersColumns.id.completeName
-      )
-      .where(this.organizationsColumns.id.completeName, orgId)
-      .first()
+    // Buscar o owner da organização
+    const organization = await this.organizationRepository.findOne({
+      where: { orgId },
+      relations: ['owner']
+    })
 
-    owner.role = 'owner'
-    owner.active = true
+    const result: OrganizationMemberType[] = []
 
-    members.push(owner as OrganizationMember)
+    // Adicionar membros
+    for (const member of members) {
+      result.push({
+        userId: member.user.id,
+        orgId: member.orgId,
+        role: member.role as any,
+        email: member.user.email,
+        firstName: member.user.firstName,
+        lastName: member.user.lastName
+      })
+    }
 
-    return members
+    // Adicionar owner se encontrado
+    if (organization?.owner) {
+      result.push({
+        userId: organization.owner.id,
+        orgId: organization.orgId,
+        role: 'owner' as any,
+        email: organization.owner.email,
+        firstName: organization.owner.firstName,
+        lastName: organization.owner.lastName
+      })
+    }
+
+    return result
   }
 
   async countMembersByOrganization(orgId: number): Promise<number> {
-    const result = await this.knex(organizationMembers.name)
-      .count('* as total')
-      .where(this.organizationMembersColumns.orgId.completeName, orgId)
-      .first()
+    const count = await this.organizationMemberRepository.count({
+      where: { orgId }
+    })
 
-    if (!result) return 0
-    return parseInt(result.total as string, 10)
+    // +1 para incluir o owner
+    return count + 1
   }
 
   async getMemberById(userId: number, orgId: number) {
-    return await this.knex(organizationMembers.name)
-      .select([
-        this.organizationMembersColumns.userId.completeName,
-        this.organizationMembersColumns.orgId.completeName,
-        this.organizationMembersColumns.role.completeName,
-        this.organizationMembersColumns.active.completeName,
-        this.usersColumns.id.completeName,
-        this.usersColumns.email.completeName,
-        this.usersColumns.firstName.completeName,
-        this.usersColumns.lastName.completeName,
-        this.organizationsColumns.id.completeName,
-        this.organizationsColumns.completeName.completeName,
-        this.organizationsColumns.cnpj.completeName,
-        this.organizationsColumns.address.completeName,
-        this.organizationsColumns.phone.completeName,
-        this.organizationsColumns.owner.completeName
-      ])
-      .leftJoin(
-        users.name,
-        this.organizationMembersColumns.userId.completeName,
-        this.usersColumns.id.completeName
-      )
-      .leftJoin(
-        organizations.name,
-        this.organizationMembersColumns.orgId.completeName,
-        this.organizationsColumns.id.completeName
-      )
-      .where(this.organizationMembersColumns.userId.completeName, userId)
-      .andWhere(this.organizationMembersColumns.orgId.completeName, orgId)
-      .first()
+    const member = await this.organizationMemberRepository.findOne({
+      where: { userId, orgId },
+      relations: ['user', 'organization']
+    })
+
+    if (!member) return null
+
+    return {
+      userId: member.userId,
+      orgId: member.orgId,
+      role: member.role,
+      active: member.active,
+      id: member.user.id,
+      email: member.user.email,
+      firstName: member.user.firstName,
+      lastName: member.user.lastName,
+      organization: {
+        orgId: member.organization.orgId,
+        name: member.organization.name,
+        cnpj: member.organization.cnpj,
+        address: member.organization.address,
+        phone: member.organization.phone,
+        ownerId: member.organization.ownerId
+      }
+    }
   }
 
   async updateMember(
@@ -188,9 +180,10 @@ export class OrganizationsMembersRepo {
     orgId: number,
     updateData: { role?: string; active?: boolean }
   ) {
-    return await this.knex(organizationMembers.name)
-      .where(this.organizationMembersColumns.userId.completeName, userId)
-      .andWhere(this.organizationMembersColumns.orgId.completeName, orgId)
-      .update(updateData)
+    const result = await this.organizationMemberRepository.update(
+      { userId, orgId },
+      updateData
+    )
+    return result.affected || 0
   }
 }

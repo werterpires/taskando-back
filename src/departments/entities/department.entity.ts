@@ -9,12 +9,11 @@ import {
 } from 'typeorm'
 import { User } from '../../users/entities/user.entity'
 import { Organization } from '../../organizations/entities/organization.entity'
-import { Department } from '../../departments/entities/department.entity'
 
-@Entity('teams')
-export class Team {
-  @PrimaryGeneratedColumn({ name: 'team_id' })
-  teamId: number
+@Entity('departments')
+export class Department {
+  @PrimaryGeneratedColumn({ name: 'dept_id' })
+  deptId: number
 
   @Column({ length: 255 })
   name: string
@@ -22,19 +21,12 @@ export class Team {
   @Column({ name: 'owner_id' })
   ownerId: number
 
-  @Column({ name: 'dept_id', nullable: true })
-  deptId?: number
-
   @Column({ name: 'org_id', nullable: true })
   orgId?: number
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'owner_id' })
   owner: User
-
-  @ManyToOne(() => Department, { nullable: true })
-  @JoinColumn({ name: 'dept_id' })
-  department?: Department
 
   @ManyToOne(() => Organization, { nullable: true })
   @JoinColumn({ name: 'org_id' })

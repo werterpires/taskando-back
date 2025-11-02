@@ -1,25 +1,35 @@
 import { Injectable } from '@nestjs/common'
-import { Knex } from 'knex'
-import { InjectConnection } from 'nest-knexjs'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
 
 import { ValidateUser as ValidateUser } from './types'
-import { users } from '../../constants/db'
+import { User } from '../../users/entities/user.entity'
 
 @Injectable()
 export class AuthRepo {
-  private users = users
-  private usersColumns = users.columns
-
-  constructor(@InjectConnection('knexx') private readonly knex: Knex) {}
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>
+  ) {}
 
   async findUserByEmailForLogin(
     email: string
   ): Promise<ValidateUser | undefined> {
-    const user = await this.knex<ValidateUser>(users.name)
-      .table(users.name)
-      .where(this.usersColumns.email.completeName, email)
-      .first()
+    const user = await this.userRepository.findOne({
+      where: { email },
+      select: ['id', 'email', 'password', 'firstName', 'lastName', 'isActive']
+    })
 
-    return user as ValidateUser
+    if (!user) {
+      return undefined
+    }
+
+    return {
+      userId: user.id,
+      email: user.email,
+      password: user.password,
+      firstName: user.firstName,
+      lastName: user.lastName
+    } as ValidateUser
   }
 }

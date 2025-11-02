@@ -19,7 +19,9 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   const hasTable = await knex.schema.hasTable(db.teamMembers.name)
+  console.log('tem a tabela')
   if (!hasTable) return
-
+  console.log('passou do if')
   await knex.schema.dropTable(db.teamMembers.name)
+  console.log('ela foi dropada')
 }

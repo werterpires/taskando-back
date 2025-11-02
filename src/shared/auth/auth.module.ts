@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
+import { TypeOrmModule } from '@nestjs/typeorm'
 import { AuthService } from './auth.service'
 import { AuthController } from './auth.controller'
 import { LoginValidationMiddleware } from './middlewares/login-validation.middleware'
@@ -8,11 +9,13 @@ import { LocalStrategy } from './strategies/local.strategy'
 import { PassportModule } from '@nestjs/passport'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { JwtStrategy } from './strategies/jwt.strategy'
+import { User } from '../../users/entities/user.entity'
 
 const services = [AuthService, AuthRepo, LocalStrategy, JwtStrategy]
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([User]),
     ConfigModule, // Importa aqui no módulo local
     PassportModule,
     JwtModule.registerAsync({

@@ -44,7 +44,12 @@ export class DepartmentsController {
     @Query('orderBy', new DefaultValuePipe('deptId')) orderBy: string,
     @Query('direction', new DefaultValuePipe('ASC')) direction: string
   ) {
-    const paginator: Paginator = { limit, offset, orderBy, direction }
+    const paginator: Paginator = {
+      limit,
+      offset,
+      orderBy,
+      direction: direction as 'ASC' | 'DESC'
+    }
     return this.departmentsService.getAll(currentUser, paginator)
   }
 
@@ -54,7 +59,7 @@ export class DepartmentsController {
     @CurrentUser() currentUser: ValidateUser,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset: number,
-    @Query('direction', new DefaultValuePipe('ASC')) direction: string
+    @Query('direction', new DefaultValuePipe('ASC')) direction: 'ASC' | 'DESC'
   ) {
     const paginator: Paginator = { limit, offset, orderBy: 'deptId', direction }
     return this.departmentsService.findAllByOrgId(orgId, currentUser, paginator)

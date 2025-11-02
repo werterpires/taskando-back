@@ -41,7 +41,7 @@ export class OrganizationsMembersController {
     @Query('limit', ParseIntPipe) limit: number = 10,
     @Query('offset', ParseIntPipe) offset: number = 0,
     @Query('orderBy') orderBy: string = 'userId',
-    @Query('direction') direction: string = 'ASC',
+    @Query('direction') direction: 'ASC' | 'DESC' = 'ASC',
     @CurrentUser() CurrentUser: ValidateUser
   ) {
     console.log('user controller', CurrentUser)
