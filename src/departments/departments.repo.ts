@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
-import { Repository } from 'typeorm'
+import { Repository, In } from 'typeorm'
 import { CreateDepartmentData, Department as DepartmentType } from './types'
 import { Department } from './entities/department.entity'
 import { DepartmentMember } from './entities/department-member.entity'
@@ -57,66 +57,87 @@ export class DepartmentsRepo {
     userId: number,
     paginator: Paginator
   ): Promise<DepartmentType[]> {
-    const queryBuilder = this.departmentRepository.createQueryBuilder('dept')
+    // 1. Buscar IDs dos departamentos que o usuário tem acesso
+    const memberDeptIds = await this.departmentMemberRepository
+      .find({
+        where: { userId, active: true },
+        select: ['departmentId']
+      })
+      .then((members) => members.map((m) => m.departmentId))
 
-    queryBuilder
-      .select(['dept.deptId', 'dept.name', 'dept.orgId', 'dept.ownerId'])
-      .where('dept.ownerId = :userId', { userId })
-      .orWhere((qb) => {
-        const subQuery = qb
-          .subQuery()
-          .select('1')
-          .from(DepartmentMember, 'dm')
-          .where('dm.departmentId = dept.deptId')
-          .andWhere('dm.userId = :userId')
-          .andWhere('dm.role IN (:...roles)')
-          .getQuery()
-        return `EXISTS (${subQuery})`
+    const ownedDeptIds = await this.departmentRepository
+      .find({
+        where: { ownerId: userId },
+        select: ['deptId']
       })
-      .orWhere((qb) => {
-        const subQuery = qb
-          .subQuery()
-          .select('1')
-          .from(OrganizationMember, 'om')
-          .where('om.orgId = dept.orgId')
-          .andWhere('om.userId = :userId')
-          .andWhere('om.role IN (:...orgRoles)')
-          .getQuery()
-        return `EXISTS (${subQuery})`
-      })
-      .orWhere((qb) => {
-        const subQuery = qb
-          .subQuery()
-          .select('1')
-          .from(Organization, 'org')
-          .where('org.orgId = dept.orgId')
-          .andWhere('org.ownerId = :userId')
-          .getQuery()
-        return `EXISTS (${subQuery})`
-      })
-      .setParameters({
-        userId,
-        roles: [
-          userRoleEnum.LEADER,
-          userRoleEnum.EDITOR,
-          userRoleEnum.REVIEWER,
-          userRoleEnum.EXECUTOR,
-          userRoleEnum.CONTRIBUTOR,
-          userRoleEnum.WATCHER
-        ],
-        orgRoles: [
-          userRoleEnum.LEADER,
-          userRoleEnum.EDITOR,
-          userRoleEnum.REVIEWER,
-          userRoleEnum.EXECUTOR,
-          userRoleEnum.CONTRIBUTOR
-        ]
-      })
-      .orderBy('dept.deptId', paginator.direction as 'ASC' | 'DESC')
-      .skip(paginator.offset)
-      .take(paginator.limit)
+      .then((depts) => depts.map((d) => d.deptId))
 
-    const departments = await queryBuilder.getMany()
+    // IDs dos departamentos via membership em organizações
+    const orgMemberDeptIds = await this.organizationMemberRepository
+      .find({
+        where: {
+          userId,
+          active: true,
+          role: In([
+            userRoleEnum.LEADER,
+            userRoleEnum.EDITOR,
+            userRoleEnum.REVIEWER,
+            userRoleEnum.EXECUTOR,
+            userRoleEnum.CONTRIBUTOR
+          ])
+        },
+        select: ['orgId']
+      })
+      .then(async (orgMembers) => {
+        if (orgMembers.length === 0) return []
+
+        const orgIds = orgMembers.map((om) => om.orgId)
+        return this.departmentRepository
+          .find({
+            where: { orgId: In(orgIds) },
+            select: ['deptId']
+          })
+          .then((depts) => depts.map((d) => d.deptId))
+      })
+
+    // IDs dos departamentos via ownership de organizações
+    const ownedOrgDeptIds = await this.organizationRepository
+      .find({
+        where: { ownerId: userId },
+        select: ['orgId']
+      })
+      .then(async (ownedOrgs) => {
+        if (ownedOrgs.length === 0) return []
+
+        const orgIds = ownedOrgs.map((o) => o.orgId)
+        return this.departmentRepository
+          .find({
+            where: { orgId: In(orgIds) },
+            select: ['deptId']
+          })
+          .then((depts) => depts.map((d) => d.deptId))
+      })
+
+    const allDeptIds = [
+      ...new Set([
+        ...memberDeptIds,
+        ...ownedDeptIds,
+        ...orgMemberDeptIds,
+        ...ownedOrgDeptIds
+      ])
+    ]
+
+    if (allDeptIds.length === 0) {
+      return []
+    }
+
+    // 2. Buscar departamentos
+    const departments = await this.departmentRepository.find({
+      where: { deptId: In(allDeptIds) },
+      order: { [paginator.orderBy]: paginator.direction },
+      skip: paginator.offset,
+      take: paginator.limit
+    })
 
     return departments.map((dept) => ({
       deptId: dept.deptId,
@@ -127,63 +148,75 @@ export class DepartmentsRepo {
   }
 
   async countByUserIdOrMember(userId: number): Promise<number> {
-    const queryBuilder = this.departmentRepository.createQueryBuilder('dept')
+    // Versão simplificada do count - reutiliza a lógica do getAllByUserIdOrMember
+    const memberDeptIds = await this.departmentMemberRepository
+      .find({
+        where: { userId, active: true },
+        select: ['departmentId']
+      })
+      .then((members) => members.map((m) => m.departmentId))
 
-    const count = await queryBuilder
-      .where('dept.ownerId = :userId', { userId })
-      .orWhere((qb) => {
-        const subQuery = qb
-          .subQuery()
-          .select('1')
-          .from(DepartmentMember, 'dm')
-          .where('dm.departmentId = dept.deptId')
-          .andWhere('dm.userId = :userId')
-          .andWhere('dm.role IN (:...roles)')
-          .getQuery()
-        return `EXISTS (${subQuery})`
+    const ownedDeptIds = await this.departmentRepository
+      .find({
+        where: { ownerId: userId },
+        select: ['deptId']
       })
-      .orWhere((qb) => {
-        const subQuery = qb
-          .subQuery()
-          .select('1')
-          .from(OrganizationMember, 'om')
-          .where('om.orgId = dept.orgId')
-          .andWhere('om.userId = :userId')
-          .andWhere('om.role IN (:...orgRoles)')
-          .getQuery()
-        return `EXISTS (${subQuery})`
-      })
-      .orWhere((qb) => {
-        const subQuery = qb
-          .subQuery()
-          .select('1')
-          .from(Organization, 'org')
-          .where('org.orgId = dept.orgId')
-          .andWhere('org.ownerId = :userId')
-          .getQuery()
-        return `EXISTS (${subQuery})`
-      })
-      .setParameters({
-        userId,
-        roles: [
-          userRoleEnum.LEADER,
-          userRoleEnum.EDITOR,
-          userRoleEnum.REVIEWER,
-          userRoleEnum.EXECUTOR,
-          userRoleEnum.CONTRIBUTOR,
-          userRoleEnum.WATCHER
-        ],
-        orgRoles: [
-          userRoleEnum.LEADER,
-          userRoleEnum.EDITOR,
-          userRoleEnum.REVIEWER,
-          userRoleEnum.EXECUTOR,
-          userRoleEnum.CONTRIBUTOR
-        ]
-      })
-      .getCount()
+      .then((depts) => depts.map((d) => d.deptId))
 
-    return count
+    const orgMemberDeptIds = await this.organizationMemberRepository
+      .find({
+        where: {
+          userId,
+          active: true,
+          role: In([
+            userRoleEnum.LEADER,
+            userRoleEnum.EDITOR,
+            userRoleEnum.REVIEWER,
+            userRoleEnum.EXECUTOR,
+            userRoleEnum.CONTRIBUTOR
+          ])
+        },
+        select: ['orgId']
+      })
+      .then(async (orgMembers) => {
+        if (orgMembers.length === 0) return []
+
+        const orgIds = orgMembers.map((om) => om.orgId)
+        return this.departmentRepository
+          .find({
+            where: { orgId: In(orgIds) },
+            select: ['deptId']
+          })
+          .then((depts) => depts.map((d) => d.deptId))
+      })
+
+    const ownedOrgDeptIds = await this.organizationRepository
+      .find({
+        where: { ownerId: userId },
+        select: ['orgId']
+      })
+      .then(async (ownedOrgs) => {
+        if (ownedOrgs.length === 0) return []
+
+        const orgIds = ownedOrgs.map((o) => o.orgId)
+        return this.departmentRepository
+          .find({
+            where: { orgId: In(orgIds) },
+            select: ['deptId']
+          })
+          .then((depts) => depts.map((d) => d.deptId))
+      })
+
+    const allDeptIds = [
+      ...new Set([
+        ...memberDeptIds,
+        ...ownedDeptIds,
+        ...orgMemberDeptIds,
+        ...ownedOrgDeptIds
+      ])
+    ]
+
+    return allDeptIds.length
   }
 
   async getAllByOwnerId(
@@ -216,67 +249,34 @@ export class DepartmentsRepo {
     deptId: number,
     userId: number
   ): Promise<DepartmentType | null> {
-    // Verificar se o usuário tem permissão (versão simplificada)
-    const queryBuilder = this.departmentRepository.createQueryBuilder('dept')
-
-    const hasPermission = await queryBuilder
-      .where('dept.deptId = :deptId', { deptId })
-      .andWhere((qb) => {
-        qb.where('dept.ownerId = :userId', { userId })
-          .orWhere((subQb) => {
-            const subQuery = subQb
-              .subQuery()
-              .select('1')
-              .from(DepartmentMember, 'dm')
-              .where('dm.departmentId = :deptId')
-              .andWhere('dm.userId = :userId')
-              .getQuery()
-            return `EXISTS (${subQuery})`
-          })
-          .orWhere((subQb) => {
-            const subQuery = subQb
-              .subQuery()
-              .select('1')
-              .from(OrganizationMember, 'om')
-              .where('om.orgId = dept.orgId')
-              .andWhere('om.userId = :userId')
-              .andWhere('om.role IN (:...roles)')
-              .getQuery()
-            return `EXISTS (${subQuery})`
-          })
-          .orWhere((subQb) => {
-            const subQuery = subQb
-              .subQuery()
-              .select('1')
-              .from(Organization, 'org')
-              .where('org.orgId = dept.orgId')
-              .andWhere('org.ownerId = :userId')
-              .getQuery()
-            return `EXISTS (${subQuery})`
-          })
-      })
-      .setParameters({
-        deptId,
-        userId,
-        roles: [
-          userRoleEnum.LEADER,
-          userRoleEnum.EDITOR,
-          userRoleEnum.REVIEWER,
-          userRoleEnum.EXECUTOR,
-          userRoleEnum.CONTRIBUTOR
-        ]
-      })
-      .getOne()
-
-    if (!hasPermission) return null
-
     // Buscar o department com relacionamentos
     const department = await this.departmentRepository.findOne({
       where: { deptId },
-      relations: ['owner', 'organization']
+      relations: {
+        owner: true,
+        organization: true
+      }
     })
 
     if (!department) return null
+
+    // Verificar se o usuário tem acesso
+    const isOwner = department.ownerId === userId
+
+    const isMember = await this.departmentMemberRepository.findOne({
+      where: { userId, departmentId: deptId, active: true }
+    })
+
+    let hasOrgAccess = false
+    if (department.organization) {
+      const isOrgOwner = department.organization.ownerId === userId
+      const orgMember = await this.organizationMemberRepository.findOne({
+        where: { userId, orgId: department.orgId, active: true }
+      })
+      hasOrgAccess = isOrgOwner || !!orgMember
+    }
+
+    if (!isOwner && !isMember && !hasOrgAccess) return null
 
     const result: DepartmentType = {
       deptId: department.deptId,
@@ -330,69 +330,41 @@ export class DepartmentsRepo {
     userId: number,
     paginator: Paginator
   ): Promise<DepartmentType[]> {
-    const queryBuilder = this.departmentRepository.createQueryBuilder('dept')
+    // Abordagem mais simples e robusta: primeiro verificar acesso, depois buscar departamentos
 
-    const departments = await queryBuilder
-      .select(['dept.deptId', 'dept.name', 'dept.orgId', 'dept.ownerId'])
-      .where('dept.orgId = :orgId', { orgId })
-      .andWhere((qb) => {
-        qb.where('dept.ownerId = :userId', { userId })
-          .orWhere((subQb) => {
-            const subQuery = subQb
-              .subQuery()
-              .select('1')
-              .from(DepartmentMember, 'dm')
-              .where('dm.departmentId = dept.deptId')
-              .andWhere('dm.userId = :userId')
-              .andWhere('dm.role IN (:...roles)')
-              .getQuery()
-            return `EXISTS (${subQuery})`
-          })
-          .orWhere((subQb) => {
-            const subQuery = subQb
-              .subQuery()
-              .select('1')
-              .from(OrganizationMember, 'om')
-              .where('om.orgId = :orgId')
-              .andWhere('om.userId = :userId')
-              .andWhere('om.role IN (:...orgRoles)')
-              .getQuery()
-            return `EXISTS (${subQuery})`
-          })
-          .orWhere((subQb) => {
-            const subQuery = subQb
-              .subQuery()
-              .select('1')
-              .from(Organization, 'org')
-              .where('org.orgId = :orgId')
-              .andWhere('org.ownerId = :userId')
-              .getQuery()
-            return `EXISTS (${subQuery})`
-          })
-      })
-      .setParameters({
-        orgId,
-        userId,
-        roles: [
-          userRoleEnum.LEADER,
-          userRoleEnum.EDITOR,
-          userRoleEnum.REVIEWER,
-          userRoleEnum.EXECUTOR,
-          userRoleEnum.CONTRIBUTOR,
-          userRoleEnum.WATCHER
-        ],
-        orgRoles: [
-          userRoleEnum.LEADER,
-          userRoleEnum.EDITOR,
-          userRoleEnum.REVIEWER,
-          userRoleEnum.EXECUTOR,
-          userRoleEnum.CONTRIBUTOR
-        ]
-      })
-      .orderBy('dept.deptId', paginator.direction as 'ASC' | 'DESC')
-      .skip(paginator.offset)
-      .take(paginator.limit)
-      .getMany()
+    // 1. Verificar se usuário tem acesso à organização
+    const hasAccess = await this.organizationRepository.findOne({
+      where: { orgId, ownerId: userId }
+    })
+
+    const isMember = !hasAccess
+      ? await this.organizationMemberRepository.findOne({
+          where: {
+            userId,
+            orgId,
+            active: true,
+            role: In([
+              userRoleEnum.LEADER,
+              userRoleEnum.EDITOR,
+              userRoleEnum.REVIEWER,
+              userRoleEnum.EXECUTOR,
+              userRoleEnum.CONTRIBUTOR
+            ])
+          }
+        })
+      : null
+
+    if (!hasAccess && !isMember) {
+      return []
+    }
+
+    // 2. Buscar departamentos da organização
+    const departments = await this.departmentRepository.find({
+      where: { orgId },
+      order: { [paginator.orderBy]: paginator.direction },
+      skip: paginator.offset,
+      take: paginator.limit
+    })
 
     return departments.map((dept) => ({
       deptId: dept.deptId,

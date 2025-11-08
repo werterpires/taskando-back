@@ -4,12 +4,16 @@ import { DepartmentsModule } from '../departments/departments.module'
 import { TeamsModule } from '../teams/teams.module'
 import { OrganizationsService } from './organizations.service'
 import { OrganizationsController } from './organizations.controller'
-import { OrganizationsRepo } from './organizations.repo'
 import { OrganizationsHelper } from './organizations.helper'
 import { Organization } from './entities/organization.entity'
 import { OrganizationMember } from '../organizations-members/entities/organization-member.entity'
+import { OrganizationsSimpleRepo } from './organizations-simple.repo'
 
-const services = [OrganizationsService, OrganizationsRepo, OrganizationsHelper]
+const services = [
+  OrganizationsService,
+  OrganizationsSimpleRepo,
+  OrganizationsHelper
+]
 
 @Module({
   imports: [

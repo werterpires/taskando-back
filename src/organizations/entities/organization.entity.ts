@@ -4,10 +4,13 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn
 } from 'typeorm'
 import { User } from '../../users/entities/user.entity'
+import { OrganizationMember } from '../../organizations-members/entities/organization-member.entity'
+import { Department } from 'src/departments/entities/department.entity'
 
 @Entity('organizations')
 export class Organization {
@@ -32,6 +35,12 @@ export class Organization {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'owner_id' })
   owner: User
+
+  @OneToMany(() => OrganizationMember, (member) => member.organization)
+  members: OrganizationMember[]
+
+  @OneToMany(() => Department, (department) => department.organization)
+  departments: Department[]
 
   @CreateDateColumn()
   createdAt: Date

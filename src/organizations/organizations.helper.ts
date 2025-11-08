@@ -23,7 +23,7 @@ export class OrganizationsHelper {
     updateOrganizationDto: UpdateOrganizationDto
   ): Partial<CreateOrganizationData> {
     const updateData: Partial<CreateOrganizationData> = {}
-    
+
     if (updateOrganizationDto.name !== undefined) {
       updateData.name = updateOrganizationDto.name
     }
