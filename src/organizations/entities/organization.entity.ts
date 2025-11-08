@@ -2,13 +2,10 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  JoinColumn,
-  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn
 } from 'typeorm'
-import { User } from '../../users/entities/user.entity'
 import { OrganizationMember } from '../../organizations-members/entities/organization-member.entity'
 import { Department } from 'src/departments/entities/department.entity'
 
@@ -18,29 +15,25 @@ export class Organization {
   orgId: number
 
   @Column({ length: 255 })
-  name: string
+  orgName: string
 
-  @Column({ length: 14, nullable: true, unique: true })
-  cnpj?: string
+  @Column({ nullable: true, unique: true })
+  orgCnpj?: string
 
   @Column({ length: 255, nullable: true })
-  address?: string
+  orgAddress?: string
 
   @Column({ length: 15, nullable: true })
-  phone?: string
+  orgPhone?: string
 
-  @Column({ name: 'owner_id' })
-  ownerId: number
-
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'owner_id' })
-  owner: User
+  @Column({ name: 'active', default: true })
+  orgActive: boolean
 
   @OneToMany(() => OrganizationMember, (member) => member.organization)
-  members: OrganizationMember[]
+  orgMembers: OrganizationMember[]
 
   @OneToMany(() => Department, (department) => department.organization)
-  departments: Department[]
+  orgDepartments: Department[]
 
   @CreateDateColumn()
   createdAt: Date

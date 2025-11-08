@@ -7,13 +7,8 @@ import { OrganizationsController } from './organizations.controller'
 import { OrganizationsHelper } from './organizations.helper'
 import { Organization } from './entities/organization.entity'
 import { OrganizationMember } from '../organizations-members/entities/organization-member.entity'
-import { OrganizationsSimpleRepo } from './organizations-simple.repo'
 
-const services = [
-  OrganizationsService,
-  OrganizationsSimpleRepo,
-  OrganizationsHelper
-]
+const services = [OrganizationsService, OrganizationsHelper]
 
 @Module({
   imports: [
