@@ -10,7 +10,15 @@ export class CreateDepartmentDto {
   @IsString()
   @IsNotEmpty()
   @Length(1, 255)
-  name: string
+  deptName: string
+
+  @IsOptional()
+  @IsString()
+  deptDescription?: string
+
+  @IsOptional()
+  @IsString()
+  deptGoals?: string
 
   @IsOptional()
   @IsNumber()

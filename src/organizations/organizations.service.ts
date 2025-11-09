@@ -159,14 +159,13 @@ export class OrganizationsService {
   }
 
   async update(
-    orgId: number,
-    updateOrganizationDto: Omit<UpdateOrganizationDto, 'orgId'>,
+    updateOrganizationDto: UpdateOrganizationDto,
     currentUser: ValidateUser
   ): Promise<Organization> {
     // Check if user has editAndDelete power for this organization
     const organizationMember = await this.organizationMemberRepository.findOne({
       where: {
-        orgId,
+        orgId: updateOrganizationDto.orgId,
         userId: currentUser.userId,
         active: true
       }
@@ -183,7 +182,6 @@ export class OrganizationsService {
 
     // Use preload to load existing entity and apply changes in one go
     const organizationToUpdate = await this.organizationRepository.preload({
-      orgId,
       ...updateOrganizationDto
     })
 

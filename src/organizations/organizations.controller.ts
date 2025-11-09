@@ -39,17 +39,12 @@ export class OrganizationsController {
     return await this.organizationsService.getOne(id, currentUser)
   }
 
-  @Put(':id')
+  @Put()
   async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateOrganizationDto: Omit<UpdateOrganizationDto, 'orgId'>,
+    @Body() updateOrganizationDto: UpdateOrganizationDto,
     @CurrentUser() currentUser: ValidateUser
   ) {
-    return this.organizationsService.update(
-      id,
-      updateOrganizationDto,
-      currentUser
-    )
+    return this.organizationsService.update(updateOrganizationDto, currentUser)
   }
 
   @Delete(':id')

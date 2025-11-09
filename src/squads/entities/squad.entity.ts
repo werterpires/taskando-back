@@ -9,14 +9,15 @@ import {
 } from 'typeorm'
 import { Department } from '../../departments/entities/department.entity'
 import { Organization } from '../../organizations/entities/organization.entity'
+import { Team } from '../../teams/entities/team.entity'
 
-@Entity('teams')
-export class Team {
-  @PrimaryGeneratedColumn({ name: 'team_id' })
-  teamId: number
+@Entity('squads')
+export class Squad {
+  @PrimaryGeneratedColumn({ name: 'squad_id' })
+  squadId: number
 
   @Column({ length: 255 })
-  teamName: string
+  squadName: string
 
   @Column({ name: 'dept_id', nullable: true })
   deptId?: number
@@ -24,14 +25,17 @@ export class Team {
   @Column({ name: 'org_id', nullable: true })
   orgId?: number
 
-  @Column({ type: 'text', nullable: true })
-  teamDescription?: string
+  @Column({ name: 'team_id', nullable: true })
+  teamId?: number
 
   @Column({ type: 'text', nullable: true })
-  teamGoals?: string
+  squadDescription?: string
+
+  @Column({ type: 'text', nullable: true })
+  squadGoals?: string
 
   @Column({ name: 'active', default: true })
-  teamActive: boolean
+  squadActive: boolean
 
   @ManyToOne(() => Department, { nullable: true })
   @JoinColumn({ name: 'dept_id' })
@@ -40,6 +44,10 @@ export class Team {
   @ManyToOne(() => Organization, { nullable: true })
   @JoinColumn({ name: 'org_id' })
   organization?: Organization
+
+  @ManyToOne(() => Team, { nullable: true })
+  @JoinColumn({ name: 'team_id' })
+  team?: Team
 
   @CreateDateColumn()
   createdAt: Date

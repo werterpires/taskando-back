@@ -6,21 +6,21 @@ import {
   IsNotEmpty
 } from 'class-validator'
 
-export class UpdateDepartmentDto {
+export class UpdateSquadDto {
   @IsNumber()
   @IsNotEmpty()
-  deptId: number
+  squadId: number
 
   @IsOptional()
   @IsString()
   @Length(1, 255)
-  deptName?: string
+  squadName?: string
 
   @IsOptional()
   @IsString()
-  deptDescription?: string
+  squadDescription?: string
 
   @IsOptional()
   @IsString()
-  deptGoals?: string
+  squadGoals?: string
 }

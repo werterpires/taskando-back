@@ -11,6 +11,8 @@ import { CustomErrorHandlerService } from './shared/custom-error-handler/custom-
 import { GlobalErrorsFilter } from './shared/custom-error-handler/global-errors.filter'
 import { UtilsModuleModule } from './shared/utils-module/utils-module.module'
 import { TeamsModule } from './teams/teams.module'
+import { SquadsModule } from './squads/squads.module'
+import { ActivityDomainsModule } from './activity-domains/activity-domains.module'
 import { UsersModule } from './users/users.module'
 
 config()
@@ -80,7 +82,9 @@ const typeOrm = TypeOrmModule.forRoot({
     OrganizationsModule,
     OrganizationsMembersModule,
     DepartmentsModule,
-    TeamsModule
+    TeamsModule,
+    SquadsModule,
+    ActivityDomainsModule
   ],
   controllers: [],
   providers: [

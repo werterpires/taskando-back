@@ -1,11 +1,12 @@
 import { userRoleEnum } from 'src/constants/roles.enum'
 
-export interface ITeam {
-  teamId: number
-  teamName: string
-  teamDescription?: string
-  teamGoals?: string
+export interface IActivityDomain {
+  areaId: number
+  name: string
+  percentual: number
   deptId?: number
   orgId?: number
+  teamId?: number
+  squadId?: number
   currentUserRoles: userRoleEnum
 }

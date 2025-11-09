@@ -14,5 +14,13 @@ export class UpdateTeamDto {
   @IsOptional()
   @IsString()
   @Length(1, 255)
-  name?: string
+  teamName?: string
+
+  @IsOptional()
+  @IsString()
+  teamDescription?: string
+
+  @IsOptional()
+  @IsString()
+  teamGoals?: string
 }

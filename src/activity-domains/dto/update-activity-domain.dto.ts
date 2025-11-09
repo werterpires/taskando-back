@@ -3,24 +3,24 @@ import {
   IsOptional,
   Length,
   IsNumber,
-  IsNotEmpty
+  IsNotEmpty,
+  Min,
+  Max
 } from 'class-validator'
 
-export class UpdateDepartmentDto {
+export class UpdateActivityDomainDto {
   @IsNumber()
   @IsNotEmpty()
-  deptId: number
+  areaId: number
 
   @IsOptional()
   @IsString()
   @Length(1, 255)
-  deptName?: string
+  name?: string
 
   @IsOptional()
-  @IsString()
-  deptDescription?: string
-
-  @IsOptional()
-  @IsString()
-  deptGoals?: string
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  percentual?: number
 }

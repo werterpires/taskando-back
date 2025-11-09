@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer'
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator'
+import {
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested
+} from 'class-validator'
 
 export class Paginator<T> {
   @IsOptional()
@@ -22,7 +29,10 @@ export class Paginator<T> {
   @IsIn(['ASC', 'DESC'])
   direction: 'ASC' | 'DESC'
 
-  filters: filter<T>[]
+  @IsOptional()
+  @Type(() => Filter)
+  @ValidateNested({ each: true })
+  filters: Filter<T>[]
 
   @IsOptional()
   @IsNumber()
@@ -30,7 +40,7 @@ export class Paginator<T> {
   totalItems?: number
 }
 
-export class filter<T> {
+export class Filter<T> {
   @IsOptional()
   @IsIn(['like', 'equal', 'moreThan', 'lessThan'])
   filterType: 'like' | 'equal' | 'moreThan' | 'lessThan'

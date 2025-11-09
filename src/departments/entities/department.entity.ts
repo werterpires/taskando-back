@@ -4,11 +4,12 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn
 } from 'typeorm'
-import { User } from '../../users/entities/user.entity'
 import { Organization } from '../../organizations/entities/organization.entity'
+import { DepartmentMember } from './department-member.entity'
 
 @Entity('departments')
 export class Department {
@@ -16,17 +17,22 @@ export class Department {
   deptId: number
 
   @Column({ length: 255 })
-  name: string
+  deptName: string
 
-  @Column({ name: 'owner_id' })
-  ownerId: number
+  @Column({ type: 'text', nullable: true })
+  deptDescription?: string
+
+  @Column({ type: 'text', nullable: true })
+  deptGoals?: string
+
+  @Column({ name: 'active', default: true })
+  deptActive: boolean
 
   @Column({ name: 'org_id', nullable: true })
   orgId?: number
 
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'owner_id' })
-  owner: User
+  @OneToMany(() => DepartmentMember, (member) => member.department)
+  deptMembers: DepartmentMember[]
 
   @ManyToOne(() => Organization, { nullable: true })
   @JoinColumn({ name: 'org_id' })
