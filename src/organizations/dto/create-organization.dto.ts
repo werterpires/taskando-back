@@ -4,20 +4,28 @@ export class CreateOrganizationDto {
   @IsString()
   @IsNotEmpty()
   @Length(1, 255)
-  name: string
+  orgName: string
 
   @IsOptional()
   @IsString()
   @Length(14, 14)
-  cnpj?: string
+  orgCnpj?: string
 
   @IsOptional()
   @IsString()
   @Length(1, 255)
-  address?: string
+  orgAddress?: string
 
   @IsOptional()
   @IsString()
   @Length(1, 15)
-  phone?: string
+  orgPhone?: string
+
+  @IsOptional()
+  @IsString()
+  orgDescription?: string
+
+  @IsOptional()
+  @IsString()
+  orgGoals?: string
 }

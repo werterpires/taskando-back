@@ -1,16 +1,12 @@
 import { userRoleEnum } from 'src/constants/roles.enum'
-import { User } from 'src/users/types'
 
-export interface CreateOrganizationData {
-  name: string
-  ownerId: number
-  cnpj?: string
-  address?: string
-  phone?: string
-}
-
-export interface Organization extends CreateOrganizationData {
+export interface IOrganization {
   orgId: number
-  owner?: User
-  currentUserRoles?: userRoleEnum[]
+  orgName: string
+  orgCnpj?: string
+  orgAddress?: string
+  orgPhone?: string
+  orgDescription?: string
+  orgGoals?: string
+  currentUserRoles: userRoleEnum
 }

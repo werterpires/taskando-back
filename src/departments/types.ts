@@ -1,6 +1,6 @@
 import { userRoleEnum } from 'src/constants/roles.enum'
 import { User } from 'src/users/types'
-import type { Organization } from 'src/organizations/types'
+import type { IOrganization } from 'src/organizations/types'
 import type { Team } from 'src/teams/types'
 
 export interface CreateDepartmentData {
@@ -12,7 +12,7 @@ export interface CreateDepartmentData {
 export interface Department extends CreateDepartmentData {
   deptId: number
   owner?: User
-  organization?: Organization
+  organization?: IOrganization
   currentUserRoles?: userRoleEnum[]
   teams?: Team[]
 }

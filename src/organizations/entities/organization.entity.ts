@@ -26,6 +26,12 @@ export class Organization {
   @Column({ length: 15, nullable: true })
   orgPhone?: string
 
+  @Column({ type: 'text', nullable: true })
+  orgDescription?: string
+
+  @Column({ type: 'text', nullable: true })
+  orgGoals?: string
+
   @Column({ name: 'active', default: true })
   orgActive: boolean
 

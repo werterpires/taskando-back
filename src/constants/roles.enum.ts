@@ -1,11 +1,21 @@
 export enum userRoleEnum {
-  WATCHER = 'watcher',
-  REVIEWER = 'reviewer',
-  EXECUTOR = 'executor',
-  EDITOR = 'editor',
-  CONTRIBUTOR = 'contributor',
-  LEADER = 'leader',
-  OWNER = 'owner'
+  WATCHER = 'A',
+  REVIEWER = 'AB',
+  EXECUTOR = 'ABC',
+  EDITOR = 'ABCD',
+  CONTRIBUTOR = 'ABCE',
+  LEADER = 'ABCDEF',
+  OWNER = 'ABCDEFG'
+}
+
+export const powers = {
+  view: 'A',
+  seeChildren: 'B',
+  interact: 'C',
+  approve: 'D',
+  addChildren: 'E',
+  addMembers: 'F',
+  editAndDelete: 'G'
 }
 
 export const userRoles: userRole[] = [

@@ -1,5 +1,5 @@
 import { userRoleEnum } from 'src/constants/roles.enum'
-import { Organization } from 'src/organizations/types'
+import { IOrganization } from 'src/organizations/types'
 import { User } from 'src/users/types'
 
 export interface createOrganizationMember {
@@ -8,5 +8,5 @@ export interface createOrganizationMember {
   role: userRoleEnum
 }
 export interface OrganizationMember extends createOrganizationMember, User {
-  organization?: Organization
+  organization?: IOrganization
 }
