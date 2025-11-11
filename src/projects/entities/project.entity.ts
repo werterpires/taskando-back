@@ -11,14 +11,33 @@ import { Department } from '../../departments/entities/department.entity'
 import { Organization } from '../../organizations/entities/organization.entity'
 import { Team } from '../../teams/entities/team.entity'
 import { Squad } from '../../squads/entities/squad.entity'
+import { ActivityDomain } from '../../activity-domains/entities/activity-domain.entity'
 
-@Entity('activity_domains')
-export class ActivityDomain {
-  @PrimaryGeneratedColumn({ name: 'area_id' })
-  areaId: number
+@Entity('projects')
+export class Project {
+  @PrimaryGeneratedColumn({ name: 'project_id' })
+  projectId: number
 
   @Column({ length: 255 })
-  activityDomainName: string
+  projectName: string
+
+  @Column({ type: 'text', nullable: true })
+  projectDescription?: string
+
+  @Column({ type: 'date', nullable: true })
+  projectStartDate?: Date
+
+  @Column({ type: 'date', nullable: true })
+  projectEndDate?: Date
+
+  @Column({ length: 50, default: 'PENDING' })
+  projectStatus: string
+
+  @Column({ type: 'date' })
+  projectDeadline: Date
+
+  @Column({ type: 'text', nullable: true })
+  projectGoals?: string
 
   @Column({ name: 'dept_id', nullable: true })
   deptId?: number
@@ -32,11 +51,11 @@ export class ActivityDomain {
   @Column({ name: 'squad_id', nullable: true })
   squadId?: number
 
-  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
-  activityDomainPercentual: number
+  @Column({ name: 'activity_domain_id', nullable: true })
+  activityDomainId?: number
 
   @Column({ name: 'active', default: true })
-  activityDomainActive: boolean
+  projectActive: boolean
 
   @ManyToOne(() => Department, { nullable: true })
   @JoinColumn({ name: 'dept_id' })
@@ -53,6 +72,10 @@ export class ActivityDomain {
   @ManyToOne(() => Squad, { nullable: true })
   @JoinColumn({ name: 'squad_id' })
   squad?: Squad
+
+  @ManyToOne(() => ActivityDomain, { nullable: true })
+  @JoinColumn({ name: 'activity_domain_id' })
+  activityDomain?: ActivityDomain
 
   @CreateDateColumn()
   createdAt: Date

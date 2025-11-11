@@ -13,13 +13,13 @@ export class CreateActivityDomainDto {
   @IsString()
   @IsNotEmpty()
   @Length(1, 255)
-  name: string
+  activityDomainName: string
 
   @IsNumber()
   @Min(0)
   @Max(100)
   @IsOptional()
-  percentual?: number
+  activityDomainPercentual?: number
 
   @IsOptional()
   @IsNumber()

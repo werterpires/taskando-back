@@ -13,6 +13,8 @@ import { UtilsModuleModule } from './shared/utils-module/utils-module.module'
 import { TeamsModule } from './teams/teams.module'
 import { SquadsModule } from './squads/squads.module'
 import { ActivityDomainsModule } from './activity-domains/activity-domains.module'
+import { ProjectsModule } from './projects/projects.module'
+import { StreamsModule } from './streams/streams.module'
 import { UsersModule } from './users/users.module'
 
 config()
@@ -84,7 +86,9 @@ const typeOrm = TypeOrmModule.forRoot({
     DepartmentsModule,
     TeamsModule,
     SquadsModule,
-    ActivityDomainsModule
+    ActivityDomainsModule,
+    ProjectsModule,
+    StreamsModule
   ],
   controllers: [],
   providers: [

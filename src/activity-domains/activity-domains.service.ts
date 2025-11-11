@@ -16,14 +16,18 @@ import { Paginator } from '../shared/types/paginator.types'
 import { CreateActivityDomainDto } from './dto/create-activity-domain.dto'
 import { UpdateActivityDomainDto } from './dto/update-activity-domain.dto'
 import { ActivityDomain } from './entities/activity-domain.entity'
+import { ActivityDomainMember } from './entities/activity-domain-member.entity'
 import { IActivityDomain } from './types'
 import { ActivityDomainsHelper } from './activity-domains.helper'
+import { userRoleEnum } from '../constants/roles.enum'
 
 @Injectable()
 export class ActivityDomainsService {
   constructor(
     @InjectRepository(ActivityDomain)
     private readonly activityDomainRepository: Repository<ActivityDomain>,
+    @InjectRepository(ActivityDomainMember)
+    private readonly activityDomainMemberRepository: Repository<ActivityDomainMember>,
     @InjectRepository(OrganizationMember)
     private readonly organizationMemberRepository: Repository<OrganizationMember>,
     @InjectRepository(DepartmentMember)
@@ -42,18 +46,26 @@ export class ActivityDomainsService {
   ): Promise<IActivityDomain> {
     // Find the activity domain
     const activityDomain = await this.activityDomainRepository.findOne({
-      where: { areaId, active: true }
+      where: { areaId, activityDomainActive: true }
     })
 
     if (!activityDomain) {
       throw new NotFoundException('Activity domain not found')
     }
 
-    // Check if user has view power in the parent entity
+    // Check if user has direct membership first, otherwise fall back to parent entity membership
     let hasAccess = false
     let userRole = ''
 
-    if (activityDomain.orgId) {
+    const directMember = await this.activityDomainMemberRepository.findOne({
+      where: { areaId, userId: currentUser.userId, active: true }
+    })
+    if (directMember && directMember.role.includes(powers.view)) {
+      hasAccess = true
+      userRole = directMember.role
+    }
+
+    if (!hasAccess && activityDomain.orgId) {
       const orgMember = await this.organizationMemberRepository.findOne({
         where: {
           orgId: activityDomain.orgId,
@@ -65,7 +77,7 @@ export class ActivityDomainsService {
         hasAccess = true
         userRole = orgMember.role
       }
-    } else if (activityDomain.deptId) {
+    } else if (!hasAccess && activityDomain.deptId) {
       const deptMember = await this.departmentMemberRepository.findOne({
         where: {
           departmentId: activityDomain.deptId,
@@ -77,7 +89,7 @@ export class ActivityDomainsService {
         hasAccess = true
         userRole = deptMember.role
       }
-    } else if (activityDomain.teamId) {
+    } else if (!hasAccess && activityDomain.teamId) {
       const teamMember = await this.teamMemberRepository.findOne({
         where: {
           teamId: activityDomain.teamId,
@@ -89,7 +101,7 @@ export class ActivityDomainsService {
         hasAccess = true
         userRole = teamMember.role
       }
-    } else if (activityDomain.squadId) {
+    } else if (!hasAccess && activityDomain.squadId) {
       const squadMember = await this.squadMemberRepository.findOne({
         where: {
           squadId: activityDomain.squadId,
@@ -109,8 +121,8 @@ export class ActivityDomainsService {
 
     return {
       areaId: activityDomain.areaId,
-      name: activityDomain.name,
-      percentual: activityDomain.percentual,
+      activityDomainName: activityDomain.activityDomainName,
+      activityDomainPercentual: activityDomain.activityDomainPercentual,
       deptId: activityDomain.deptId,
       orgId: activityDomain.orgId,
       teamId: activityDomain.teamId,
@@ -126,12 +138,15 @@ export class ActivityDomainsService {
     const {
       limit = 20,
       offset = 0,
-      orderBy = 'name',
+      orderBy = 'activityDomainName',
       direction = 'ASC',
       filters = []
     } = paginator
 
-    // Get all organizations, departments, teams, and squads where user is member
+    // Get all organizations, departments, teams, squads and direct activity domains where user is member
+    const directDomainMembers = await this.activityDomainMemberRepository.find({
+      where: { userId: currentUser.userId, active: true }
+    })
     const orgMembers = await this.organizationMemberRepository.find({
       where: { userId: currentUser.userId, active: true }
     })
@@ -161,18 +176,23 @@ export class ActivityDomainsService {
     // Build the query
     const queryBuilder = this.activityDomainRepository
       .createQueryBuilder('domain')
-      .where('domain.active = :active', { active: true })
+      .where('domain.activityDomainActive = :active', { active: true })
 
     // Add WHERE conditions for accessible entities
+    const directAreaIds = directDomainMembers
+      .filter((m) => m.role.includes(powers.view))
+      .map((m) => m.areaId)
+
     if (
       orgIds.length > 0 ||
       deptIds.length > 0 ||
       teamIds.length > 0 ||
-      squadIds.length > 0
+      squadIds.length > 0 ||
+      directAreaIds.length > 0
     ) {
       queryBuilder.andWhere(
-        '(domain.orgId IN (:...orgIds) OR domain.deptId IN (:...deptIds) OR domain.teamId IN (:...teamIds) OR domain.squadId IN (:...squadIds))',
-        { orgIds, deptIds, teamIds, squadIds }
+        '((domain.orgId IN (:...orgIds)) OR (domain.deptId IN (:...deptIds)) OR (domain.teamId IN (:...teamIds)) OR (domain.squadId IN (:...squadIds)) OR (domain.areaId IN (:...directAreaIds)))',
+        { orgIds, deptIds, teamIds, squadIds, directAreaIds }
       )
     } else {
       // User has no access to any entity
@@ -225,7 +245,10 @@ export class ActivityDomainsService {
     const domainsWithUserRoles = domains.map((domain) => {
       let userRole = ''
 
-      if (domain.orgId) {
+      const direct = directDomainMembers.find((m) => m.areaId === domain.areaId)
+      if (direct) {
+        userRole = direct.role
+      } else if (domain.orgId) {
         const orgMember = orgMembers.find((m) => m.orgId === domain.orgId)
         userRole = orgMember?.role || ''
       } else if (domain.deptId) {
@@ -245,8 +268,8 @@ export class ActivityDomainsService {
 
       return {
         areaId: domain.areaId,
-        name: domain.name,
-        percentual: domain.percentual,
+        activityDomainName: domain.activityDomainName,
+        activityDomainPercentual: domain.activityDomainPercentual,
         deptId: domain.deptId,
         orgId: domain.orgId,
         teamId: domain.teamId,
@@ -297,7 +320,7 @@ export class ActivityDomainsService {
     const {
       limit = 20,
       offset = 0,
-      orderBy = 'name',
+      orderBy = 'activityDomainName',
       direction = 'ASC',
       filters = []
     } = paginator
@@ -305,7 +328,7 @@ export class ActivityDomainsService {
     const queryBuilder = this.activityDomainRepository
       .createQueryBuilder('domain')
       .where('domain.orgId = :orgId', { orgId })
-      .andWhere('domain.active = :active', { active: true })
+      .andWhere('domain.activityDomainActive = :active', { active: true })
 
     // Apply filters
     filters.forEach((filter) => {
@@ -346,8 +369,8 @@ export class ActivityDomainsService {
 
     const domainsWithUserRoles = domains.map((domain) => ({
       areaId: domain.areaId,
-      name: domain.name,
-      percentual: domain.percentual,
+      activityDomainName: domain.activityDomainName,
+      activityDomainPercentual: domain.activityDomainPercentual,
       deptId: domain.deptId,
       orgId: domain.orgId,
       teamId: domain.teamId,
@@ -395,7 +418,7 @@ export class ActivityDomainsService {
     const {
       limit = 20,
       offset = 0,
-      orderBy = 'name',
+      orderBy = 'activityDomainName',
       direction = 'ASC',
       filters = []
     } = paginator
@@ -403,7 +426,7 @@ export class ActivityDomainsService {
     const queryBuilder = this.activityDomainRepository
       .createQueryBuilder('domain')
       .where('domain.deptId = :deptId', { deptId })
-      .andWhere('domain.active = :active', { active: true })
+      .andWhere('domain.activityDomainActive = :active', { active: true })
 
     filters.forEach((filter) => {
       const { filterType, field, value } = filter
@@ -443,8 +466,8 @@ export class ActivityDomainsService {
 
     const domainsWithUserRoles = domains.map((domain) => ({
       areaId: domain.areaId,
-      name: domain.name,
-      percentual: domain.percentual,
+      activityDomainName: domain.activityDomainName,
+      activityDomainPercentual: domain.activityDomainPercentual,
       deptId: domain.deptId,
       orgId: domain.orgId,
       teamId: domain.teamId,
@@ -489,7 +512,7 @@ export class ActivityDomainsService {
     const {
       limit = 20,
       offset = 0,
-      orderBy = 'name',
+      orderBy = 'activityDomainName',
       direction = 'ASC',
       filters = []
     } = paginator
@@ -497,7 +520,7 @@ export class ActivityDomainsService {
     const queryBuilder = this.activityDomainRepository
       .createQueryBuilder('domain')
       .where('domain.teamId = :teamId', { teamId })
-      .andWhere('domain.active = :active', { active: true })
+      .andWhere('domain.activityDomainActive = :active', { active: true })
 
     filters.forEach((filter) => {
       const { filterType, field, value } = filter
@@ -537,8 +560,8 @@ export class ActivityDomainsService {
 
     const domainsWithUserRoles = domains.map((domain) => ({
       areaId: domain.areaId,
-      name: domain.name,
-      percentual: domain.percentual,
+      activityDomainName: domain.activityDomainName,
+      activityDomainPercentual: domain.activityDomainPercentual,
       deptId: domain.deptId,
       orgId: domain.orgId,
       teamId: domain.teamId,
@@ -583,7 +606,7 @@ export class ActivityDomainsService {
     const {
       limit = 20,
       offset = 0,
-      orderBy = 'name',
+      orderBy = 'activityDomainName',
       direction = 'ASC',
       filters = []
     } = paginator
@@ -591,7 +614,7 @@ export class ActivityDomainsService {
     const queryBuilder = this.activityDomainRepository
       .createQueryBuilder('domain')
       .where('domain.squadId = :squadId', { squadId })
-      .andWhere('domain.active = :active', { active: true })
+      .andWhere('domain.activityDomainActive = :active', { active: true })
 
     filters.forEach((filter) => {
       const { filterType, field, value } = filter
@@ -631,8 +654,8 @@ export class ActivityDomainsService {
 
     const domainsWithUserRoles = domains.map((domain) => ({
       areaId: domain.areaId,
-      name: domain.name,
-      percentual: domain.percentual,
+      activityDomainName: domain.activityDomainName,
+      activityDomainPercentual: domain.activityDomainPercentual,
       deptId: domain.deptId,
       orgId: domain.orgId,
       teamId: domain.teamId,
@@ -661,17 +684,31 @@ export class ActivityDomainsService {
   ): Promise<ActivityDomain> {
     // Find the activity domain
     const activityDomain = await this.activityDomainRepository.findOne({
-      where: { areaId: updateActivityDomainDto.areaId, active: true }
+      where: {
+        areaId: updateActivityDomainDto.areaId,
+        activityDomainActive: true
+      }
     })
 
     if (!activityDomain) {
       throw new NotFoundException('Activity domain not found')
     }
 
-    // Check if user has editAndDelete power in the parent entity
+    // Check if user has editAndDelete power either directly or in the parent entity
     let hasPermission = false
 
-    if (activityDomain.orgId) {
+    const directMember = await this.activityDomainMemberRepository.findOne({
+      where: {
+        areaId: activityDomain.areaId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+    if (directMember && directMember.role.includes(powers.editAndDelete)) {
+      hasPermission = true
+    }
+
+    if (!hasPermission && activityDomain.orgId) {
       const orgMember = await this.organizationMemberRepository.findOne({
         where: {
           orgId: activityDomain.orgId,
@@ -682,7 +719,7 @@ export class ActivityDomainsService {
       if (orgMember && orgMember.role.includes(powers.editAndDelete)) {
         hasPermission = true
       }
-    } else if (activityDomain.deptId) {
+    } else if (!hasPermission && activityDomain.deptId) {
       const deptMember = await this.departmentMemberRepository.findOne({
         where: {
           departmentId: activityDomain.deptId,
@@ -693,7 +730,7 @@ export class ActivityDomainsService {
       if (deptMember && deptMember.role.includes(powers.editAndDelete)) {
         hasPermission = true
       }
-    } else if (activityDomain.teamId) {
+    } else if (!hasPermission && activityDomain.teamId) {
       const teamMember = await this.teamMemberRepository.findOne({
         where: {
           teamId: activityDomain.teamId,
@@ -704,7 +741,7 @@ export class ActivityDomainsService {
       if (teamMember && teamMember.role.includes(powers.editAndDelete)) {
         hasPermission = true
       }
-    } else if (activityDomain.squadId) {
+    } else if (!hasPermission && activityDomain.squadId) {
       const squadMember = await this.squadMemberRepository.findOne({
         where: {
           squadId: activityDomain.squadId,
@@ -738,17 +775,28 @@ export class ActivityDomainsService {
   async delete(areaId: number, currentUser: ValidateUser): Promise<void> {
     // Find the activity domain
     const activityDomain = await this.activityDomainRepository.findOne({
-      where: { areaId, active: true }
+      where: { areaId, activityDomainActive: true }
     })
 
     if (!activityDomain) {
       throw new NotFoundException('Activity domain not found')
     }
 
-    // Check if user has editAndDelete power in the parent entity
+    // Check if user has editAndDelete power either directly or in the parent entity
     let hasPermission = false
 
-    if (activityDomain.orgId) {
+    const directMember = await this.activityDomainMemberRepository.findOne({
+      where: {
+        areaId: activityDomain.areaId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+    if (directMember && directMember.role.includes(powers.editAndDelete)) {
+      hasPermission = true
+    }
+
+    if (!hasPermission && activityDomain.orgId) {
       const orgMember = await this.organizationMemberRepository.findOne({
         where: {
           orgId: activityDomain.orgId,
@@ -759,7 +807,7 @@ export class ActivityDomainsService {
       if (orgMember && orgMember.role.includes(powers.editAndDelete)) {
         hasPermission = true
       }
-    } else if (activityDomain.deptId) {
+    } else if (!hasPermission && activityDomain.deptId) {
       const deptMember = await this.departmentMemberRepository.findOne({
         where: {
           departmentId: activityDomain.deptId,
@@ -770,7 +818,7 @@ export class ActivityDomainsService {
       if (deptMember && deptMember.role.includes(powers.editAndDelete)) {
         hasPermission = true
       }
-    } else if (activityDomain.teamId) {
+    } else if (!hasPermission && activityDomain.teamId) {
       const teamMember = await this.teamMemberRepository.findOne({
         where: {
           teamId: activityDomain.teamId,
@@ -781,7 +829,7 @@ export class ActivityDomainsService {
       if (teamMember && teamMember.role.includes(powers.editAndDelete)) {
         hasPermission = true
       }
-    } else if (activityDomain.squadId) {
+    } else if (!hasPermission && activityDomain.squadId) {
       const squadMember = await this.squadMemberRepository.findOne({
         where: {
           squadId: activityDomain.squadId,
@@ -801,7 +849,9 @@ export class ActivityDomainsService {
     }
 
     // Soft delete by setting active to false
-    await this.activityDomainRepository.update(areaId, { active: false })
+    await this.activityDomainRepository.update(areaId, {
+      activityDomainActive: false
+    })
   }
 
   async create(
@@ -898,10 +948,22 @@ export class ActivityDomainsService {
       // Create the activity domain
       const activityDomain = manager.create(ActivityDomain, {
         ...createActivityDomainDto,
+        activityDomainActive: true
+      })
+
+      const saved = await manager.save(ActivityDomain, activityDomain)
+
+      // Add creator as member with OWNER role
+      const domainMember = manager.create(ActivityDomainMember, {
+        userId: currentUser.userId,
+        areaId: saved.areaId,
+        role: userRoleEnum.OWNER,
         active: true
       })
 
-      return await manager.save(ActivityDomain, activityDomain)
+      await manager.save(ActivityDomainMember, domainMember)
+
+      return saved
     })
   }
 }

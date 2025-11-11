@@ -766,29 +766,12 @@ export const projects: DbTable = {
         onUpdate: 'CASCADE'
       }
     },
-    owner: {
-      name: 'ownerId',
-      completeName: 'projects.ownerId',
-      type: 'number',
-      nullable: false,
-      foreignKey: {
-        table: 'users',
-        column: 'userId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
-    },
-    leader: {
-      name: 'leaderId',
-      completeName: 'projects.leaderId',
-      type: 'number',
-      nullable: true,
-      foreignKey: {
-        table: 'users',
-        column: 'userId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
+    goals: {
+      name: 'goals',
+      completeName: 'projects.goals',
+      type: 'string',
+      length: 1000,
+      nullable: true
     }
   }
 }
@@ -955,47 +938,42 @@ export const projectsTemplates: DbTable = {
   }
 }
 
-export const domains: DbTable = {
-  name: 'domains',
+export const streams: DbTable = {
+  name: 'streams',
   columns: {
     id: {
-      name: 'domainId',
-      completeName: 'domains.domainId',
+      name: 'streamId',
+      completeName: 'streams.streamId',
       type: 'number',
       primary: true,
       nullable: false
     },
     name: {
       name: 'name',
-      completeName: 'domains.name',
+      completeName: 'streams.name',
       type: 'string',
       length: 255,
       nullable: false
     },
     description: {
       name: 'description',
-      completeName: 'domains.description',
+      completeName: 'streams.description',
       type: 'string',
       length: 1000,
       nullable: true
     },
-    leader: {
-      name: 'leaderId',
-      completeName: 'domains.leaderId',
-      type: 'number',
-      nullable: true,
-      foreignKey: {
-        table: 'users',
-        column: 'userId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
+    goals: {
+      name: 'goals',
+      completeName: 'streams.goals',
+      type: 'string',
+      length: 1000,
+      nullable: true
     },
     project: {
       name: 'projectId',
-      completeName: 'domains.projectId',
+      completeName: 'streams.projectId',
       type: 'number',
-      nullable: true,
+      nullable: false,
       foreignKey: {
         table: 'projects',
         column: 'projectId',
@@ -1003,14 +981,14 @@ export const domains: DbTable = {
         onUpdate: 'CASCADE'
       }
     },
-    owner: {
-      name: 'ownerId',
-      completeName: 'domains.ownerId',
+    activityDomain: {
+      name: 'activityDomainId',
+      completeName: 'streams.activityDomainId',
       type: 'number',
-      nullable: false,
+      nullable: true,
       foreignKey: {
-        table: 'users',
-        column: 'userId',
+        table: 'activityDomains',
+        column: 'activityDomainId',
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       }

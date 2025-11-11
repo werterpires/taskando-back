@@ -4,6 +4,7 @@ import { ActivityDomainsService } from './activity-domains.service'
 import { ActivityDomainsController } from './activity-domains.controller'
 import { ActivityDomainsHelper } from './activity-domains.helper'
 import { ActivityDomain } from './entities/activity-domain.entity'
+import { ActivityDomainMember } from './entities/activity-domain-member.entity'
 import { Organization } from '../organizations/entities/organization.entity'
 import { Department } from '../departments/entities/department.entity'
 import { Team } from '../teams/entities/team.entity'
@@ -19,6 +20,7 @@ const services = [ActivityDomainsService, ActivityDomainsHelper]
   imports: [
     TypeOrmModule.forFeature([
       ActivityDomain,
+      ActivityDomainMember,
       Organization,
       Department,
       Team,

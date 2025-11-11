@@ -16,11 +16,11 @@ export class UpdateActivityDomainDto {
   @IsOptional()
   @IsString()
   @Length(1, 255)
-  name?: string
+  activityDomainName?: string
 
   @IsOptional()
   @IsNumber()
   @Min(0)
   @Max(100)
-  percentual?: number
+  activityDomainPercentual?: number
 }
