@@ -1091,55 +1091,43 @@ export const products: DbTable = {
       nullable: false
     },
     name: {
-      name: 'name',
-      completeName: 'products.name',
+      name: 'productName',
+      completeName: 'products.productName',
       type: 'string',
       length: 255,
       nullable: false
     },
     description: {
-      name: 'description',
-      completeName: 'products.description',
+      name: 'productDescription',
+      completeName: 'products.productDescription',
       type: 'string',
       length: 1000,
       nullable: true
     },
     startDate: {
-      name: 'startDate',
-      completeName: 'products.startDate',
+      name: 'productStartDate',
+      completeName: 'products.productStartDate',
       type: 'date',
       nullable: true
     },
     endDate: {
-      name: 'endDate',
-      completeName: 'products.endDate',
+      name: 'productEndDate',
+      completeName: 'products.productEndDate',
       type: 'date',
       nullable: true
     },
     status: {
-      name: 'status',
-      completeName: 'products.status',
+      name: 'productStatus',
+      completeName: 'products.productStatus',
       type: 'string',
       length: 50,
       nullable: false
     },
     deadline: {
-      name: 'deadline',
-      completeName: 'products.deadline',
+      name: 'productDeadline',
+      completeName: 'products.productDeadline',
       type: 'date',
       nullable: false
-    },
-    owner: {
-      name: 'ownerId',
-      completeName: 'products.ownerId',
-      type: 'number',
-      nullable: false,
-      foreignKey: {
-        table: 'users',
-        column: 'userId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
     },
     project: {
       name: 'projectId',
@@ -1153,14 +1141,14 @@ export const products: DbTable = {
         onUpdate: 'CASCADE'
       }
     },
-    domain: {
-      name: 'domainId',
-      completeName: 'products.domainId',
+    stream: {
+      name: 'streamId',
+      completeName: 'products.streamId',
       type: 'number',
       nullable: true,
       foreignKey: {
-        table: 'domains',
-        column: 'domainId',
+        table: 'streams',
+        column: 'streamId',
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       }
@@ -1213,26 +1201,14 @@ export const products: DbTable = {
         onUpdate: 'CASCADE'
       }
     },
-    leader: {
-      name: 'leaderId',
-      completeName: 'products.leaderId',
+    activityDomain: {
+      name: 'activityDomainId',
+      completeName: 'products.activityDomainId',
       type: 'number',
       nullable: true,
       foreignKey: {
-        table: 'users',
-        column: 'userId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
-    },
-    area: {
-      name: 'areaId',
-      completeName: 'products.areaId',
-      type: 'number',
-      nullable: true,
-      foreignKey: {
-        table: 'areas',
-        column: 'areaId',
+        table: 'activityDomains',
+        column: 'activityDomainId',
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       }
@@ -1430,28 +1406,28 @@ export const processes: DbTable = {
       nullable: false
     },
     name: {
-      name: 'name',
-      completeName: 'processes.name',
+      name: 'processName',
+      completeName: 'processes.processName',
       type: 'string',
       length: 255,
       nullable: false
     },
     description: {
-      name: 'description',
-      completeName: 'processes.description',
+      name: 'processDescription',
+      completeName: 'processes.processDescription',
       type: 'string',
       length: 1000,
       nullable: true
     },
     startDate: {
-      name: 'startDate',
-      completeName: 'processes.startDate',
+      name: 'processStartDate',
+      completeName: 'processes.processStartDate',
       type: 'date',
       nullable: true
     },
     endDate: {
-      name: 'endDate',
-      completeName: 'processes.endDate',
+      name: 'processEndDate',
+      completeName: 'processes.processEndDate',
       type: 'date',
       nullable: true
     },
@@ -1516,13 +1492,13 @@ export const processes: DbTable = {
       }
     },
     domain: {
-      name: 'domainId',
-      completeName: 'processes.domainId',
+      name: 'streamId',
+      completeName: 'processes.streamId',
       type: 'number',
       nullable: true,
       foreignKey: {
-        table: 'domains',
-        column: 'domainId',
+        table: 'streams',
+        column: 'streamId',
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       }
@@ -1539,43 +1515,19 @@ export const processes: DbTable = {
         onUpdate: 'CASCADE'
       }
     },
-    owner: {
-      name: 'ownerId',
-      completeName: 'processes.ownerId',
-      type: 'number',
-      nullable: false,
-      foreignKey: {
-        table: 'users',
-        column: 'userId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
-    },
     status: {
-      name: 'status',
-      completeName: 'processes.status',
+      name: 'processStatus',
+      completeName: 'processes.processStatus',
       type: 'string',
       length: 50,
       nullable: false,
       default: 'PENDING'
     },
     deadline: {
-      name: 'deadline',
-      completeName: 'processes.deadline',
+      name: 'processDeadline',
+      completeName: 'processes.processDeadline',
       type: 'date',
       nullable: false
-    },
-    leader: {
-      name: 'leaderId',
-      completeName: 'processes.leaderId',
-      type: 'number',
-      nullable: true,
-      foreignKey: {
-        table: 'users',
-        column: 'userId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
     }
   }
 }
@@ -1591,34 +1543,34 @@ export const phases: DbTable = {
       nullable: false
     },
     name: {
-      name: 'name',
-      completeName: 'phases.name',
+      name: 'phaseName',
+      completeName: 'phases.phaseName',
       type: 'string',
       length: 255,
       nullable: false
     },
     description: {
-      name: 'description',
-      completeName: 'phases.description',
+      name: 'phaseDescription',
+      completeName: 'phases.phaseDescription',
       type: 'string',
       length: 1000,
       nullable: true
     },
     startDate: {
-      name: 'startDate',
-      completeName: 'phases.startDate',
+      name: 'phaseStartDate',
+      completeName: 'phases.phaseStartDate',
       type: 'date',
       nullable: true
     },
     endDate: {
-      name: 'endDate',
-      completeName: 'phases.endDate',
+      name: 'phaseEndDate',
+      completeName: 'phases.phaseEndDate',
       type: 'date',
       nullable: true
     },
     deadline: {
-      name: 'deadline',
-      completeName: 'phases.deadline',
+      name: 'phaseDeadline',
+      completeName: 'phases.phaseDeadline',
       type: 'date',
       nullable: false
     },
@@ -2578,7 +2530,7 @@ export const dbTables: DbTable[] = [
   projects,
   membersOnProjects,
   projectsTemplates,
-  domains,
+  streams,
   domainMembers,
   products,
   productsTemplates,

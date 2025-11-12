@@ -15,6 +15,9 @@ import { SquadsModule } from './squads/squads.module'
 import { ActivityDomainsModule } from './activity-domains/activity-domains.module'
 import { ProjectsModule } from './projects/projects.module'
 import { StreamsModule } from './streams/streams.module'
+import { ProductsModule } from './products/products.module'
+import { ProcessesModule } from './processes/processes.module'
+import { PhasesModule } from './phases/phases.module'
 import { UsersModule } from './users/users.module'
 
 config()
@@ -88,7 +91,10 @@ const typeOrm = TypeOrmModule.forRoot({
     SquadsModule,
     ActivityDomainsModule,
     ProjectsModule,
-    StreamsModule
+    StreamsModule,
+    ProductsModule,
+    ProcessesModule,
+    PhasesModule
   ],
   controllers: [],
   providers: [
