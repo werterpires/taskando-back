@@ -18,6 +18,10 @@ import { StreamsModule } from './streams/streams.module'
 import { ProductsModule } from './products/products.module'
 import { ProcessesModule } from './processes/processes.module'
 import { PhasesModule } from './phases/phases.module'
+import { PhasesDependenciesModule } from './phases-dependencies/phases-dependencies.module'
+import { TasksModule } from './tasks/tasks.module'
+import { TasksDependenciesModule } from './tasks-dependencies/tasks-dependencies.module'
+import { TrackersModule } from './trackers/trackers.module'
 import { UsersModule } from './users/users.module'
 
 config()
@@ -94,7 +98,11 @@ const typeOrm = TypeOrmModule.forRoot({
     StreamsModule,
     ProductsModule,
     ProcessesModule,
-    PhasesModule
+    PhasesModule,
+    PhasesDependenciesModule,
+    TasksModule,
+    TasksDependenciesModule,
+    TrackersModule
   ],
   controllers: [],
   providers: [

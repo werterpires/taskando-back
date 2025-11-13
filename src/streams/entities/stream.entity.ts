@@ -30,6 +30,9 @@ export class Stream {
   @Column({ name: 'activity_domain_id', nullable: true })
   activityDomainId?: number
 
+  @Column({ name: 'stream_status', length: 50, default: 'BACKLOG' })
+  streamStatus: string
+
   @Column({ name: 'active', default: true })
   streamActive: boolean
 

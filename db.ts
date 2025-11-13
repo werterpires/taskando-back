@@ -1,3 +1,5 @@
+import { ActivityDomain } from 'src/activity-domains/entities/activity-domain.entity'
+
 export const users: DbTable = {
   name: 'users',
   columns: {
@@ -1911,64 +1913,52 @@ export const tasks: DbTable = {
       nullable: false
     },
     name: {
-      name: 'name',
-      completeName: 'tasks.name',
+      name: 'taskName',
+      completeName: 'tasks.taskName',
       type: 'string',
       length: 255,
       nullable: false
     },
     description: {
-      name: 'description',
-      completeName: 'tasks.description',
+      name: 'taskDescription',
+      completeName: 'tasks.taskDescription',
       type: 'string',
       length: 1000,
       nullable: true
     },
     startDate: {
-      name: 'startDate',
-      completeName: 'tasks.startDate',
+      name: 'taskStartDate',
+      completeName: 'tasks.taskStartDate',
       type: 'date',
       nullable: true
     },
     endDate: {
-      name: 'endDate',
-      completeName: 'tasks.endDate',
+      name: 'taskEndDate',
+      completeName: 'tasks.taskEndDate',
       type: 'date',
       nullable: true
     },
     deadline: {
-      name: 'deadline',
-      completeName: 'tasks.deadline',
+      name: 'taskDeadline',
+      completeName: 'tasks.taskDeadline',
       type: 'date',
       nullable: false
     },
     status: {
-      name: 'status',
-      completeName: 'tasks.status',
+      name: 'taskStatus',
+      completeName: 'tasks.taskStatus',
       type: 'string',
       length: 50,
       nullable: false,
       default: 'PENDING'
     },
     priority: {
-      name: 'priority',
-      completeName: 'tasks.priority',
+      name: 'taskPriority',
+      completeName: 'tasks.taskPriority',
       type: 'string',
       length: 50,
       nullable: false,
       default: 'MEDIUM'
-    },
-    owner: {
-      name: 'ownerId',
-      completeName: 'tasks.ownerId',
-      type: 'number',
-      nullable: false,
-      foreignKey: {
-        table: 'users',
-        column: 'userId',
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      }
     },
     size: {
       name: 'size',
@@ -1986,8 +1976,8 @@ export const tasks: DbTable = {
       default: 'GENERAL'
     },
     showInCalendar: {
-      name: 'showInCalendar',
-      completeName: 'tasks.showInCalendar',
+      name: 'taskShowInCalendar',
+      completeName: 'tasks.taskShowInCalendar',
       type: 'boolean',
       nullable: false,
       default: true
@@ -2016,14 +2006,14 @@ export const tasks: DbTable = {
         onUpdate: 'CASCADE'
       }
     },
-    domain: {
-      name: 'domainId',
-      completeName: 'tasks.domainId',
+    stream: {
+      name: 'streamId',
+      completeName: 'tasks.streamId',
       type: 'number',
       nullable: true,
       foreignKey: {
-        table: 'domains',
-        column: 'domainId',
+        table: 'streams',
+        column: 'streamId',
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       }
@@ -2064,14 +2054,14 @@ export const tasks: DbTable = {
         onUpdate: 'CASCADE'
       }
     },
-    area: {
-      name: 'areaId',
-      completeName: 'tasks.areaId',
+    ActivityDomain: {
+      name: 'ActivityDomainId',
+      completeName: 'tasks.ActivityDomainId',
       type: 'number',
       nullable: true,
       foreignKey: {
-        table: 'areas',
-        column: 'areaId',
+        table: 'ActivityDomains',
+        column: 'ActivityDomainId',
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       }

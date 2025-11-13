@@ -5,9 +5,11 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
-  UpdateDateColumn
+  UpdateDateColumn,
+  OneToMany
 } from 'typeorm'
 import { Process } from '../../processes/entities/process.entity'
+import { Task } from 'src/tasks/entities/task.entity'
 
 @Entity('phases')
 export class Phase {
@@ -32,6 +34,12 @@ export class Phase {
   @Column({ name: 'process_id' })
   processId: number
 
+  @Column({ name: 'dependency_thread', type: 'text' })
+  dependencyThread: string
+
+  @Column({ name: 'phase_status', length: 50, default: 'BACKLOG' })
+  phaseStatus: string
+
   @Column({ name: 'active', default: true })
   phaseActive: boolean
 
@@ -44,4 +52,7 @@ export class Phase {
   @ManyToOne(() => Process)
   @JoinColumn({ name: 'process_id' })
   process: Process
+
+  @OneToMany(() => Task, (task) => task.phase)
+  tasks: Task[]
 }

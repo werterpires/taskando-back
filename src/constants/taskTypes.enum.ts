@@ -1,0 +1,6 @@
+export enum TaskTypes {
+  GENERAL = 'GENERAL',
+  APPOINTMENT = 'APPOINTMENT',
+  ACTIVITY = 'ACTIVITY',
+  PLAN = 'PLAN'
+}

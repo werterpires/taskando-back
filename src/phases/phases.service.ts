@@ -71,6 +71,7 @@ export class PhasesService {
     try {
       const phase = this.phaseRepository.create({
         ...createPhaseDto,
+        dependencyThread: '|',
         phaseActive: true
       })
 
