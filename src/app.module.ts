@@ -22,6 +22,7 @@ import { PhasesDependenciesModule } from './phases-dependencies/phases-dependenc
 import { TasksModule } from './tasks/tasks.module'
 import { TasksDependenciesModule } from './tasks-dependencies/tasks-dependencies.module'
 import { TrackersModule } from './trackers/trackers.module'
+import { CyclesModule } from './cycles/cycles.module'
 import { UsersModule } from './users/users.module'
 
 config()
@@ -102,7 +103,8 @@ const typeOrm = TypeOrmModule.forRoot({
     PhasesDependenciesModule,
     TasksModule,
     TasksDependenciesModule,
-    TrackersModule
+    TrackersModule,
+    CyclesModule
   ],
   controllers: [],
   providers: [

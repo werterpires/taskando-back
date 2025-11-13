@@ -8,11 +8,7 @@ export class CreateTrackerDto {
   @IsNumber()
   @ValidateIf(
     (o) =>
-      !o.streamId &&
-      !o.productId &&
-      !o.processId &&
-      !o.phaseId &&
-      !o.taskId
+      !o.streamId && !o.productId && !o.processId && !o.phaseId && !o.taskId
   )
   projectId?: number
 
@@ -20,11 +16,7 @@ export class CreateTrackerDto {
   @IsNumber()
   @ValidateIf(
     (o) =>
-      !o.projectId &&
-      !o.productId &&
-      !o.processId &&
-      !o.phaseId &&
-      !o.taskId
+      !o.projectId && !o.productId && !o.processId && !o.phaseId && !o.taskId
   )
   streamId?: number
 
@@ -32,11 +24,7 @@ export class CreateTrackerDto {
   @IsNumber()
   @ValidateIf(
     (o) =>
-      !o.projectId &&
-      !o.streamId &&
-      !o.processId &&
-      !o.phaseId &&
-      !o.taskId
+      !o.projectId && !o.streamId && !o.processId && !o.phaseId && !o.taskId
   )
   productId?: number
 
@@ -44,11 +32,7 @@ export class CreateTrackerDto {
   @IsNumber()
   @ValidateIf(
     (o) =>
-      !o.projectId &&
-      !o.streamId &&
-      !o.productId &&
-      !o.phaseId &&
-      !o.taskId
+      !o.projectId && !o.streamId && !o.productId && !o.phaseId && !o.taskId
   )
   processId?: number
 
@@ -56,11 +40,7 @@ export class CreateTrackerDto {
   @IsNumber()
   @ValidateIf(
     (o) =>
-      !o.projectId &&
-      !o.streamId &&
-      !o.productId &&
-      !o.processId &&
-      !o.taskId
+      !o.projectId && !o.streamId && !o.productId && !o.processId && !o.taskId
   )
   phaseId?: number
 
@@ -68,11 +48,7 @@ export class CreateTrackerDto {
   @IsNumber()
   @ValidateIf(
     (o) =>
-      !o.projectId &&
-      !o.streamId &&
-      !o.productId &&
-      !o.processId &&
-      !o.phaseId
+      !o.projectId && !o.streamId && !o.productId && !o.processId && !o.phaseId
   )
   taskId?: number
 }
