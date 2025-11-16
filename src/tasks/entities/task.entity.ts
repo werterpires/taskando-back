@@ -4,6 +4,7 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn
 } from 'typeorm'
@@ -17,6 +18,7 @@ import { Product } from '../../products/entities/product.entity'
 import { Process } from '../../processes/entities/process.entity'
 import { Phase } from '../../phases/entities/phase.entity'
 import { ActivityDomain } from '../../activity-domains/entities/activity-domain.entity'
+import { TaskMember } from './task-member.entity'
 
 @Entity('tasks')
 export class Task {
@@ -50,8 +52,13 @@ export class Task {
   @Column({ name: 'task_type', length: 50, default: 'GENERAL' })
   taskType: string
 
-  @Column({ name: 'task_starts_at', type: 'datetime', nullable: true })
-  taskStartsAt?: Date
+  @Column({
+    name: 'task_starts_at',
+    type: 'varchar',
+    length: 23,
+    nullable: true
+  })
+  taskStartsAt?: string
 
   @Column({
     name: 'duration',
@@ -140,6 +147,9 @@ export class Task {
   @ManyToOne(() => ActivityDomain, { nullable: true })
   @JoinColumn({ name: 'activity_domain_id' })
   activityDomain?: ActivityDomain
+
+  @OneToMany(() => TaskMember, (taskMember) => taskMember.task)
+  taskMembers: TaskMember[]
 
   @CreateDateColumn()
   createdAt: Date

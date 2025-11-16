@@ -17,7 +17,7 @@ import { CreateActivityDomainDto } from './dto/create-activity-domain.dto'
 import { UpdateActivityDomainDto } from './dto/update-activity-domain.dto'
 import { ActivityDomain } from './entities/activity-domain.entity'
 import { ActivityDomainMember } from './entities/activity-domain-member.entity'
-import { IActivityDomain } from './types'
+import { IActivityDomain, IActivityDomainBasic } from './types'
 import { ActivityDomainsHelper } from './activity-domains.helper'
 import { userRoleEnum } from '../constants/roles.enum'
 
@@ -46,7 +46,7 @@ export class ActivityDomainsService {
   ): Promise<IActivityDomain> {
     // Find the activity domain
     const activityDomain = await this.activityDomainRepository.findOne({
-      where: { areaId, activityDomainActive: true }
+      where: { activityDomainId: areaId, activityDomainActive: true }
     })
 
     if (!activityDomain) {
@@ -120,7 +120,7 @@ export class ActivityDomainsService {
     }
 
     return {
-      areaId: activityDomain.areaId,
+      activityDomainId: activityDomain.activityDomainId,
       activityDomainName: activityDomain.activityDomainName,
       activityDomainPercentual: activityDomain.activityDomainPercentual,
       deptId: activityDomain.deptId,
@@ -245,7 +245,9 @@ export class ActivityDomainsService {
     const domainsWithUserRoles = domains.map((domain) => {
       let userRole = ''
 
-      const direct = directDomainMembers.find((m) => m.areaId === domain.areaId)
+      const direct = directDomainMembers.find(
+        (m) => m.areaId === domain.activityDomainId
+      )
       if (direct) {
         userRole = direct.role
       } else if (domain.orgId) {
@@ -267,7 +269,7 @@ export class ActivityDomainsService {
       }
 
       return {
-        areaId: domain.areaId,
+        activityDomainId: domain.activityDomainId,
         activityDomainName: domain.activityDomainName,
         activityDomainPercentual: domain.activityDomainPercentual,
         deptId: domain.deptId,
@@ -292,6 +294,40 @@ export class ActivityDomainsService {
       paginator: paginatory,
       itens: domainsWithUserRoles
     }
+  }
+
+  async getAllWithoutParent(
+    currentUser: ValidateUser
+  ): Promise<IActivityDomainBasic[]> {
+    // Get direct activity domain memberships for current user
+    const directDomainMembers = await this.activityDomainMemberRepository.find({
+      where: { userId: currentUser.userId, active: true }
+    })
+
+    const directAreaIds = directDomainMembers
+      .filter((m) => m.role.includes(powers.view))
+      .map((m) => m.areaId)
+
+    if (directAreaIds.length === 0) {
+      return []
+    }
+
+    // Get domains without parent (all parent IDs are null)
+    const domains = await this.activityDomainRepository
+      .createQueryBuilder('domain')
+      .where('domain.activityDomainActive = :active', { active: true })
+      .andWhere('domain.orgId IS NULL')
+      .andWhere('domain.deptId IS NULL')
+      .andWhere('domain.teamId IS NULL')
+      .andWhere('domain.squadId IS NULL')
+      .andWhere('domain.areaId IN (:...directAreaIds)', { directAreaIds })
+      .select(['domain.areaId', 'domain.activityDomainName'])
+      .getMany()
+
+    return domains.map((domain) => ({
+      activityDomainId: domain.activityDomainId,
+      activityDomainName: domain.activityDomainName
+    }))
   }
 
   async getAllByOrgId(
@@ -368,7 +404,7 @@ export class ActivityDomainsService {
       .getMany()
 
     const domainsWithUserRoles = domains.map((domain) => ({
-      areaId: domain.areaId,
+      activityDomainId: domain.activityDomainId,
       activityDomainName: domain.activityDomainName,
       activityDomainPercentual: domain.activityDomainPercentual,
       deptId: domain.deptId,
@@ -465,7 +501,7 @@ export class ActivityDomainsService {
       .getMany()
 
     const domainsWithUserRoles = domains.map((domain) => ({
-      areaId: domain.areaId,
+      activityDomainId: domain.activityDomainId,
       activityDomainName: domain.activityDomainName,
       activityDomainPercentual: domain.activityDomainPercentual,
       deptId: domain.deptId,
@@ -559,7 +595,7 @@ export class ActivityDomainsService {
       .getMany()
 
     const domainsWithUserRoles = domains.map((domain) => ({
-      areaId: domain.areaId,
+      activityDomainId: domain.activityDomainId,
       activityDomainName: domain.activityDomainName,
       activityDomainPercentual: domain.activityDomainPercentual,
       deptId: domain.deptId,
@@ -653,7 +689,7 @@ export class ActivityDomainsService {
       .getMany()
 
     const domainsWithUserRoles = domains.map((domain) => ({
-      areaId: domain.areaId,
+      activityDomainId: domain.activityDomainId,
       activityDomainName: domain.activityDomainName,
       activityDomainPercentual: domain.activityDomainPercentual,
       deptId: domain.deptId,
@@ -685,7 +721,7 @@ export class ActivityDomainsService {
     // Find the activity domain
     const activityDomain = await this.activityDomainRepository.findOne({
       where: {
-        areaId: updateActivityDomainDto.areaId,
+        activityDomainId: updateActivityDomainDto.areaId,
         activityDomainActive: true
       }
     })
@@ -699,7 +735,7 @@ export class ActivityDomainsService {
 
     const directMember = await this.activityDomainMemberRepository.findOne({
       where: {
-        areaId: activityDomain.areaId,
+        areaId: activityDomain.activityDomainId,
         userId: currentUser.userId,
         active: true
       }
@@ -775,7 +811,7 @@ export class ActivityDomainsService {
   async delete(areaId: number, currentUser: ValidateUser): Promise<void> {
     // Find the activity domain
     const activityDomain = await this.activityDomainRepository.findOne({
-      where: { areaId, activityDomainActive: true }
+      where: { activityDomainId: areaId, activityDomainActive: true }
     })
 
     if (!activityDomain) {
@@ -787,7 +823,7 @@ export class ActivityDomainsService {
 
     const directMember = await this.activityDomainMemberRepository.findOne({
       where: {
-        areaId: activityDomain.areaId,
+        areaId: activityDomain.activityDomainId,
         userId: currentUser.userId,
         active: true
       }
@@ -956,7 +992,7 @@ export class ActivityDomainsService {
       // Add creator as member with OWNER role
       const domainMember = manager.create(ActivityDomainMember, {
         userId: currentUser.userId,
-        areaId: saved.areaId,
+        areaId: saved.activityDomainId,
         role: userRoleEnum.OWNER,
         active: true
       })

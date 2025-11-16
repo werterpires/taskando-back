@@ -60,7 +60,10 @@ export class StreamsService {
     // Validate activityDomain linkage if provided
     if (activityDomainId) {
       const activityDomain = await this.activityDomainRepository.findOne({
-        where: { areaId: activityDomainId, activityDomainActive: true }
+        where: {
+          activityDomainId: activityDomainId,
+          activityDomainActive: true
+        }
       })
       if (!activityDomain) {
         throw new NotFoundException('Activity domain not found')
@@ -370,7 +373,10 @@ export class StreamsService {
         stream.activityDomainId = undefined
       } else {
         const activityDomain = await this.activityDomainRepository.findOne({
-          where: { areaId: activityDomainId, activityDomainActive: true }
+          where: {
+            activityDomainId: activityDomainId,
+            activityDomainActive: true
+          }
         })
         if (!activityDomain) {
           throw new NotFoundException('Activity domain not found')

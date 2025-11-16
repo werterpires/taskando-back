@@ -15,7 +15,7 @@ import { Squad } from '../../squads/entities/squad.entity'
 @Entity('activity_domains')
 export class ActivityDomain {
   @PrimaryGeneratedColumn({ name: 'area_id' })
-  areaId: number
+  activityDomainId: number
 
   @Column({ length: 255 })
   activityDomainName: string

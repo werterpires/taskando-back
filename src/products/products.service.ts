@@ -189,7 +189,10 @@ export class ProductsService {
     // Validate activityDomain if provided
     if (activityDomainId) {
       const activityDomain = await this.activityDomainRepository.findOne({
-        where: { areaId: activityDomainId, activityDomainActive: true }
+        where: {
+          activityDomainId: activityDomainId,
+          activityDomainActive: true
+        }
       })
 
       if (!activityDomain) {
@@ -441,7 +444,10 @@ export class ProductsService {
         product.activityDomainId = undefined
       } else {
         const activityDomain = await this.activityDomainRepository.findOne({
-          where: { areaId: activityDomainId, activityDomainActive: true }
+          where: {
+            activityDomainId: activityDomainId,
+            activityDomainActive: true
+          }
         })
 
         if (!activityDomain) {

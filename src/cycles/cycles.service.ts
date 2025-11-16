@@ -488,7 +488,7 @@ export class CyclesService {
     squadId?: number
   ): Promise<void> {
     const activityDomain = await this.activityDomainRepository.findOne({
-      where: { areaId: activityDomainId, activityDomainActive: true }
+      where: { activityDomainId: activityDomainId, activityDomainActive: true }
     })
 
     if (!activityDomain) {

@@ -9,7 +9,7 @@ export interface ITask {
   taskPriority: string
   size?: number
   taskType: string
-  taskStartsAt?: Date
+  taskStartsAt?: string
   duration?: number
   taskShowInCalendar: boolean
   orgId?: number

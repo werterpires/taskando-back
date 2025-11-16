@@ -20,6 +20,8 @@ import { Product } from '../products/entities/product.entity'
 import { Process } from '../processes/entities/process.entity'
 import { Phase } from '../phases/entities/phase.entity'
 import { ValidateUser } from '../shared/auth/types'
+import { Response } from '../shared/types/response.types'
+import { Paginator } from '../shared/types/paginator.types'
 import { CreateTaskDto } from './dto/create-task.dto'
 import { UpdateTaskDto } from './dto/update-task.dto'
 import { Task } from './entities/task.entity'
@@ -104,7 +106,10 @@ export class TasksService {
     // Validate activityDomain if provided
     if (activityDomainId) {
       const activityDomain = await this.activityDomainRepository.findOne({
-        where: { areaId: activityDomainId, activityDomainActive: true }
+        where: {
+          activityDomainId: activityDomainId,
+          activityDomainActive: true
+        }
       })
 
       if (!activityDomain) {
@@ -212,9 +217,9 @@ export class TasksService {
     const task = await this.taskRepository
       .createQueryBuilder('task')
       .innerJoin(
-        'task_members',
+        'task.taskMembers',
         'member',
-        'member.task_id = task.taskId AND member.user_id = :userId AND member.active = true',
+        'member.userId = :userId AND member.active = true',
         { userId: currentUser.userId }
       )
       .where('task.taskId = :taskId', { taskId })
@@ -222,8 +227,8 @@ export class TasksService {
       .andWhere('member.role LIKE :viewPower', {
         viewPower: `%${powers.view}%`
       })
-      .select(['task.*', 'member.role'])
-      .getRawOne()
+      .select(['task', 'member.role'])
+      .getOne()
 
     if (!task) {
       throw new NotFoundException('Task not found or access denied')
@@ -261,8 +266,661 @@ export class TasksService {
       processId: task.processId,
       phaseId: task.phaseId,
       activityDomainId: task.activityDomainId,
+      dependencyThread: task.dependencyThread,
       taskActive: task.taskActive,
-      userRole: currentUserMember?.role
+      userRole: currentUserMember?.role || ''
+    }
+  }
+
+  async getAll(
+    paginator: Paginator<Task>,
+    currentUser: ValidateUser
+  ): Promise<Response<Task, ITask>> {
+    const {
+      limit = 20,
+      offset = 0,
+      orderBy = 'taskName',
+      direction = 'ASC',
+      filters = []
+    } = paginator
+
+    // Build the query to get tasks where user is member with view power
+    const queryBuilder = this.taskRepository
+      .createQueryBuilder('task')
+      .innerJoin(
+        'task.taskMembers',
+        'member',
+        'member.userId = :userId AND member.active = true',
+        { userId: currentUser.userId }
+      )
+      .where('member.role LIKE :viewPower', { viewPower: `%${powers.view}%` })
+      .andWhere('task.taskActive = :active', { active: true })
+
+    // Apply filters
+    filters.forEach((filter) => {
+      const { filterType, field, value } = filter
+      if (filterType && field && value !== undefined) {
+        switch (filterType) {
+          case 'like':
+            queryBuilder.andWhere(`task.${field} LIKE :${field}`, {
+              [field]: `%${value}%`
+            })
+            break
+          case 'equal':
+            queryBuilder.andWhere(`task.${field} = :${field}`, {
+              [field]: value
+            })
+            break
+          case 'moreThan':
+            queryBuilder.andWhere(`task.${field} > :${field}`, {
+              [field]: value
+            })
+            break
+          case 'lessThan':
+            queryBuilder.andWhere(`task.${field} < :${field}`, {
+              [field]: value
+            })
+            break
+        }
+      }
+    })
+
+    // Get total count
+    const totalItems = await queryBuilder.getCount()
+
+    // Apply pagination and ordering - now select member role too
+    const tasksWithRoles = await queryBuilder
+      .select(['task', 'member.role'])
+      .orderBy(`task.${orderBy}`, direction)
+      .skip(offset)
+      .take(limit)
+      .getMany()
+
+    // Get current user role for each task
+    const tasksWithUserRoles = await Promise.all(
+      tasksWithRoles.map(async (task) => {
+        const currentUserMember = await this.taskMemberRepository.findOne({
+          where: {
+            taskId: task.taskId,
+            userId: currentUser.userId,
+            active: true
+          }
+        })
+
+        return {
+          taskId: task.taskId,
+          taskName: task.taskName,
+          taskDescription: task.taskDescription,
+          taskStartDate: task.taskStartDate,
+          taskEndDate: task.taskEndDate,
+          taskDeadline: task.taskDeadline,
+          taskStatus: task.taskStatus,
+          taskPriority: task.taskPriority,
+          size: task.size,
+          taskType: task.taskType,
+          taskStartsAt: task.taskStartsAt,
+          duration: task.duration,
+          taskShowInCalendar: task.taskShowInCalendar,
+          orgId: task.orgId,
+          deptId: task.deptId,
+          teamId: task.teamId,
+          squadId: task.squadId,
+          projectId: task.projectId,
+          streamId: task.streamId,
+          productId: task.productId,
+          processId: task.processId,
+          phaseId: task.phaseId,
+          activityDomainId: task.activityDomainId,
+          dependencyThread: task.dependencyThread,
+          taskActive: task.taskActive,
+          userRole: currentUserMember?.role || ''
+        } as ITask
+      })
+    )
+
+    // Build paginator
+    const paginatory: Paginator<Task> = {
+      limit,
+      offset,
+      orderBy,
+      direction,
+      filters,
+      totalItems
+    }
+
+    return {
+      paginator: paginatory,
+      itens: tasksWithUserRoles
+    }
+  }
+
+  async getAllByOrgId(
+    orgId: number,
+    paginator: Paginator<Task>,
+    currentUser: ValidateUser
+  ): Promise<Response<Task, ITask>> {
+    // First, check if user has seeChildren power in the organization
+    const organizationMember = await this.organizationMemberRepository.findOne({
+      where: {
+        orgId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+
+    if (
+      !organizationMember ||
+      !organizationMember.role.includes(powers.seeChildren)
+    ) {
+      throw new NotFoundException(
+        'Organization not found or insufficient permissions to see tasks'
+      )
+    }
+
+    const {
+      limit = 20,
+      offset = 0,
+      orderBy = 'taskName',
+      direction = 'ASC',
+      filters = []
+    } = paginator
+
+    // Build the query to get tasks of the specified organization
+    const queryBuilder = this.taskRepository
+      .createQueryBuilder('task')
+      .where('task.orgId = :orgId', { orgId })
+      .andWhere('task.taskActive = :active', { active: true })
+
+    // Apply filters
+    filters.forEach((filter) => {
+      const { filterType, field, value } = filter
+      if (filterType && field && value !== undefined) {
+        switch (filterType) {
+          case 'like':
+            queryBuilder.andWhere(`task.${field} LIKE :${field}`, {
+              [field]: `%${value}%`
+            })
+            break
+          case 'equal':
+            queryBuilder.andWhere(`task.${field} = :${field}`, {
+              [field]: value
+            })
+            break
+          case 'moreThan':
+            queryBuilder.andWhere(`task.${field} > :${field}`, {
+              [field]: value
+            })
+            break
+          case 'lessThan':
+            queryBuilder.andWhere(`task.${field} < :${field}`, {
+              [field]: value
+            })
+            break
+        }
+      }
+    })
+
+    // Get total count
+    const totalItems = await queryBuilder.getCount()
+
+    // Apply pagination and ordering
+    const tasks = await queryBuilder
+      .orderBy(`task.${orderBy}`, direction)
+      .skip(offset)
+      .take(limit)
+      .getMany()
+
+    // Get current user role for each task (if member)
+    const tasksWithUserRoles = await Promise.all(
+      tasks.map(async (task) => {
+        const currentUserMember = await this.taskMemberRepository.findOne({
+          where: {
+            taskId: task.taskId,
+            userId: currentUser.userId,
+            active: true
+          }
+        })
+
+        return {
+          taskId: task.taskId,
+          taskName: task.taskName,
+          taskDescription: task.taskDescription,
+          taskStartDate: task.taskStartDate,
+          taskEndDate: task.taskEndDate,
+          taskDeadline: task.taskDeadline,
+          taskStatus: task.taskStatus,
+          taskPriority: task.taskPriority,
+          size: task.size,
+          taskType: task.taskType,
+          taskStartsAt: task.taskStartsAt,
+          duration: task.duration,
+          taskShowInCalendar: task.taskShowInCalendar,
+          orgId: task.orgId,
+          deptId: task.deptId,
+          teamId: task.teamId,
+          squadId: task.squadId,
+          projectId: task.projectId,
+          streamId: task.streamId,
+          productId: task.productId,
+          processId: task.processId,
+          phaseId: task.phaseId,
+          activityDomainId: task.activityDomainId,
+          dependencyThread: task.dependencyThread,
+          taskActive: task.taskActive,
+          userRole: currentUserMember?.role || ''
+        } as ITask
+      })
+    )
+
+    // Build paginator
+    const paginatory: Paginator<Task> = {
+      limit,
+      offset,
+      orderBy,
+      direction,
+      filters,
+      totalItems
+    }
+
+    return {
+      paginator: paginatory,
+      itens: tasksWithUserRoles
+    }
+  }
+
+  async getAllByDeptId(
+    deptId: number,
+    paginator: Paginator<Task>,
+    currentUser: ValidateUser
+  ): Promise<Response<Task, ITask>> {
+    // First, check if user has seeChildren power in the department
+    const departmentMember = await this.departmentMemberRepository.findOne({
+      where: {
+        departmentId: deptId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+
+    if (
+      !departmentMember ||
+      !departmentMember.role.includes(powers.seeChildren)
+    ) {
+      throw new NotFoundException(
+        'Department not found or insufficient permissions to see tasks'
+      )
+    }
+
+    const {
+      limit = 20,
+      offset = 0,
+      orderBy = 'taskName',
+      direction = 'ASC',
+      filters = []
+    } = paginator
+
+    // Build the query to get tasks of the specified department
+    const queryBuilder = this.taskRepository
+      .createQueryBuilder('task')
+      .where('task.deptId = :deptId', { deptId })
+      .andWhere('task.taskActive = :active', { active: true })
+
+    // Apply filters
+    filters.forEach((filter) => {
+      const { filterType, field, value } = filter
+      if (filterType && field && value !== undefined) {
+        switch (filterType) {
+          case 'like':
+            queryBuilder.andWhere(`task.${field} LIKE :${field}`, {
+              [field]: `%${value}%`
+            })
+            break
+          case 'equal':
+            queryBuilder.andWhere(`task.${field} = :${field}`, {
+              [field]: value
+            })
+            break
+          case 'moreThan':
+            queryBuilder.andWhere(`task.${field} > :${field}`, {
+              [field]: value
+            })
+            break
+          case 'lessThan':
+            queryBuilder.andWhere(`task.${field} < :${field}`, {
+              [field]: value
+            })
+            break
+        }
+      }
+    })
+
+    // Get total count
+    const totalItems = await queryBuilder.getCount()
+
+    // Apply pagination and ordering
+    const tasks = await queryBuilder
+      .orderBy(`task.${orderBy}`, direction)
+      .skip(offset)
+      .take(limit)
+      .getMany()
+
+    // Get current user role for each task (if member)
+    const tasksWithUserRoles = await Promise.all(
+      tasks.map(async (task) => {
+        const currentUserMember = await this.taskMemberRepository.findOne({
+          where: {
+            taskId: task.taskId,
+            userId: currentUser.userId,
+            active: true
+          }
+        })
+
+        return {
+          taskId: task.taskId,
+          taskName: task.taskName,
+          taskDescription: task.taskDescription,
+          taskStartDate: task.taskStartDate,
+          taskEndDate: task.taskEndDate,
+          taskDeadline: task.taskDeadline,
+          taskStatus: task.taskStatus,
+          taskPriority: task.taskPriority,
+          size: task.size,
+          taskType: task.taskType,
+          taskStartsAt: task.taskStartsAt,
+          duration: task.duration,
+          taskShowInCalendar: task.taskShowInCalendar,
+          orgId: task.orgId,
+          deptId: task.deptId,
+          teamId: task.teamId,
+          squadId: task.squadId,
+          projectId: task.projectId,
+          streamId: task.streamId,
+          productId: task.productId,
+          processId: task.processId,
+          phaseId: task.phaseId,
+          activityDomainId: task.activityDomainId,
+          dependencyThread: task.dependencyThread,
+          taskActive: task.taskActive,
+          userRole: currentUserMember?.role || ''
+        } as ITask
+      })
+    )
+
+    // Build paginator
+    const paginatory: Paginator<Task> = {
+      limit,
+      offset,
+      orderBy,
+      direction,
+      filters,
+      totalItems
+    }
+
+    return {
+      paginator: paginatory,
+      itens: tasksWithUserRoles
+    }
+  }
+
+  async getAllByTeamId(
+    teamId: number,
+    paginator: Paginator<Task>,
+    currentUser: ValidateUser
+  ): Promise<Response<Task, ITask>> {
+    // First, check if user has seeChildren power in the team
+    const teamMember = await this.teamMemberRepository.findOne({
+      where: {
+        teamId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+
+    if (!teamMember || !teamMember.role.includes(powers.seeChildren)) {
+      throw new NotFoundException(
+        'Team not found or insufficient permissions to see tasks'
+      )
+    }
+
+    const {
+      limit = 20,
+      offset = 0,
+      orderBy = 'taskName',
+      direction = 'ASC',
+      filters = []
+    } = paginator
+
+    // Build the query to get tasks of the specified team
+    const queryBuilder = this.taskRepository
+      .createQueryBuilder('task')
+      .where('task.teamId = :teamId', { teamId })
+      .andWhere('task.taskActive = :active', { active: true })
+
+    // Apply filters
+    filters.forEach((filter) => {
+      const { filterType, field, value } = filter
+      if (filterType && field && value !== undefined) {
+        switch (filterType) {
+          case 'like':
+            queryBuilder.andWhere(`task.${field} LIKE :${field}`, {
+              [field]: `%${value}%`
+            })
+            break
+          case 'equal':
+            queryBuilder.andWhere(`task.${field} = :${field}`, {
+              [field]: value
+            })
+            break
+          case 'moreThan':
+            queryBuilder.andWhere(`task.${field} > :${field}`, {
+              [field]: value
+            })
+            break
+          case 'lessThan':
+            queryBuilder.andWhere(`task.${field} < :${field}`, {
+              [field]: value
+            })
+            break
+        }
+      }
+    })
+
+    // Get total count
+    const totalItems = await queryBuilder.getCount()
+
+    // Apply pagination and ordering
+    const tasks = await queryBuilder
+      .orderBy(`task.${orderBy}`, direction)
+      .skip(offset)
+      .take(limit)
+      .getMany()
+
+    // Get current user role for each task (if member)
+    const tasksWithUserRoles = await Promise.all(
+      tasks.map(async (task) => {
+        const currentUserMember = await this.taskMemberRepository.findOne({
+          where: {
+            taskId: task.taskId,
+            userId: currentUser.userId,
+            active: true
+          }
+        })
+
+        return {
+          taskId: task.taskId,
+          taskName: task.taskName,
+          taskDescription: task.taskDescription,
+          taskStartDate: task.taskStartDate,
+          taskEndDate: task.taskEndDate,
+          taskDeadline: task.taskDeadline,
+          taskStatus: task.taskStatus,
+          taskPriority: task.taskPriority,
+          size: task.size,
+          taskType: task.taskType,
+          taskStartsAt: task.taskStartsAt,
+          duration: task.duration,
+          taskShowInCalendar: task.taskShowInCalendar,
+          orgId: task.orgId,
+          deptId: task.deptId,
+          teamId: task.teamId,
+          squadId: task.squadId,
+          projectId: task.projectId,
+          streamId: task.streamId,
+          productId: task.productId,
+          processId: task.processId,
+          phaseId: task.phaseId,
+          activityDomainId: task.activityDomainId,
+          dependencyThread: task.dependencyThread,
+          taskActive: task.taskActive,
+          userRole: currentUserMember?.role || ''
+        } as ITask
+      })
+    )
+
+    // Build paginator
+    const paginatory: Paginator<Task> = {
+      limit,
+      offset,
+      orderBy,
+      direction,
+      filters,
+      totalItems
+    }
+
+    return {
+      paginator: paginatory,
+      itens: tasksWithUserRoles
+    }
+  }
+
+  async getAllBySquadId(
+    squadId: number,
+    paginator: Paginator<Task>,
+    currentUser: ValidateUser
+  ): Promise<Response<Task, ITask>> {
+    // First, check if user has seeChildren power in the squad
+    const squadMember = await this.squadMemberRepository.findOne({
+      where: {
+        squadId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+
+    if (!squadMember || !squadMember.role.includes(powers.seeChildren)) {
+      throw new NotFoundException(
+        'Squad not found or insufficient permissions to see tasks'
+      )
+    }
+
+    const {
+      limit = 20,
+      offset = 0,
+      orderBy = 'taskName',
+      direction = 'ASC',
+      filters = []
+    } = paginator
+
+    // Build the query to get tasks of the specified squad
+    const queryBuilder = this.taskRepository
+      .createQueryBuilder('task')
+      .where('task.squadId = :squadId', { squadId })
+      .andWhere('task.taskActive = :active', { active: true })
+
+    // Apply filters
+    filters.forEach((filter) => {
+      const { filterType, field, value } = filter
+      if (filterType && field && value !== undefined) {
+        switch (filterType) {
+          case 'like':
+            queryBuilder.andWhere(`task.${field} LIKE :${field}`, {
+              [field]: `%${value}%`
+            })
+            break
+          case 'equal':
+            queryBuilder.andWhere(`task.${field} = :${field}`, {
+              [field]: value
+            })
+            break
+          case 'moreThan':
+            queryBuilder.andWhere(`task.${field} > :${field}`, {
+              [field]: value
+            })
+            break
+          case 'lessThan':
+            queryBuilder.andWhere(`task.${field} < :${field}`, {
+              [field]: value
+            })
+            break
+        }
+      }
+    })
+
+    // Get total count
+    const totalItems = await queryBuilder.getCount()
+
+    // Apply pagination and ordering
+    const tasks = await queryBuilder
+      .orderBy(`task.${orderBy}`, direction)
+      .skip(offset)
+      .take(limit)
+      .getMany()
+
+    // Get current user role for each task (if member)
+    const tasksWithUserRoles = await Promise.all(
+      tasks.map(async (task) => {
+        const currentUserMember = await this.taskMemberRepository.findOne({
+          where: {
+            taskId: task.taskId,
+            userId: currentUser.userId,
+            active: true
+          }
+        })
+
+        return {
+          taskId: task.taskId,
+          taskName: task.taskName,
+          taskDescription: task.taskDescription,
+          taskStartDate: task.taskStartDate,
+          taskEndDate: task.taskEndDate,
+          taskDeadline: task.taskDeadline,
+          taskStatus: task.taskStatus,
+          taskPriority: task.taskPriority,
+          size: task.size,
+          taskType: task.taskType,
+          taskStartsAt: task.taskStartsAt,
+          duration: task.duration,
+          taskShowInCalendar: task.taskShowInCalendar,
+          orgId: task.orgId,
+          deptId: task.deptId,
+          teamId: task.teamId,
+          squadId: task.squadId,
+          projectId: task.projectId,
+          streamId: task.streamId,
+          productId: task.productId,
+          processId: task.processId,
+          phaseId: task.phaseId,
+          activityDomainId: task.activityDomainId,
+          dependencyThread: task.dependencyThread,
+          taskActive: task.taskActive,
+          userRole: currentUserMember?.role || ''
+        } as ITask
+      })
+    )
+
+    // Build paginator
+    const paginatory: Paginator<Task> = {
+      limit,
+      offset,
+      orderBy,
+      direction,
+      filters,
+      totalItems
+    }
+
+    return {
+      paginator: paginatory,
+      itens: tasksWithUserRoles
     }
   }
 
@@ -542,6 +1200,679 @@ export class TasksService {
         throw new BadRequestException(
           'Invalid task type. Must be GENERAL, APPOINTMENT, ACTIVITY, or PLAN'
         )
+    }
+  }
+
+  async getAllByProjectId(
+    projectId: number,
+    paginator: Paginator<Task>,
+    currentUser: ValidateUser
+  ): Promise<Response<Task, ITask>> {
+    // First, check if user has seeChildren power in the project
+    const projectMember = await this.projectMemberRepository.findOne({
+      where: {
+        projectId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+
+    if (!projectMember || !projectMember.role.includes(powers.seeChildren)) {
+      throw new NotFoundException(
+        'Project not found or insufficient permissions to see tasks'
+      )
+    }
+
+    const {
+      limit = 20,
+      offset = 0,
+      orderBy = 'taskName',
+      direction = 'ASC',
+      filters = []
+    } = paginator
+
+    // Build the query to get tasks of the specified project
+    const queryBuilder = this.taskRepository
+      .createQueryBuilder('task')
+      .where('task.projectId = :projectId', { projectId })
+      .andWhere('task.taskActive = :active', { active: true })
+
+    // Apply filters
+    filters.forEach((filter) => {
+      const { filterType, field, value } = filter
+      if (filterType && field && value !== undefined) {
+        switch (filterType) {
+          case 'like':
+            queryBuilder.andWhere(`task.${field} LIKE :${field}`, {
+              [field]: `%${value}%`
+            })
+            break
+          case 'equal':
+            queryBuilder.andWhere(`task.${field} = :${field}`, {
+              [field]: value
+            })
+            break
+          case 'moreThan':
+            queryBuilder.andWhere(`task.${field} > :${field}`, {
+              [field]: value
+            })
+            break
+          case 'lessThan':
+            queryBuilder.andWhere(`task.${field} < :${field}`, {
+              [field]: value
+            })
+            break
+        }
+      }
+    })
+
+    // Get total count
+    const totalItems = await queryBuilder.getCount()
+
+    // Apply pagination and ordering
+    const tasks = await queryBuilder
+      .orderBy(`task.${orderBy}`, direction)
+      .skip(offset)
+      .take(limit)
+      .getMany()
+
+    // Get current user role for each task (if member)
+    const tasksWithUserRoles = await Promise.all(
+      tasks.map(async (task) => {
+        const currentUserMember = await this.taskMemberRepository.findOne({
+          where: {
+            taskId: task.taskId,
+            userId: currentUser.userId,
+            active: true
+          }
+        })
+
+        return {
+          taskId: task.taskId,
+          taskName: task.taskName,
+          taskDescription: task.taskDescription,
+          taskStartDate: task.taskStartDate,
+          taskEndDate: task.taskEndDate,
+          taskDeadline: task.taskDeadline,
+          taskStatus: task.taskStatus,
+          taskPriority: task.taskPriority,
+          size: task.size,
+          taskType: task.taskType,
+          taskStartsAt: task.taskStartsAt,
+          duration: task.duration,
+          taskShowInCalendar: task.taskShowInCalendar,
+          orgId: task.orgId,
+          deptId: task.deptId,
+          teamId: task.teamId,
+          squadId: task.squadId,
+          projectId: task.projectId,
+          streamId: task.streamId,
+          productId: task.productId,
+          processId: task.processId,
+          phaseId: task.phaseId,
+          activityDomainId: task.activityDomainId,
+          dependencyThread: task.dependencyThread,
+          taskActive: task.taskActive,
+          userRole: currentUserMember?.role || ''
+        } as ITask
+      })
+    )
+
+    // Build paginator
+    const paginatory: Paginator<Task> = {
+      limit,
+      offset,
+      orderBy,
+      direction,
+      filters,
+      totalItems
+    }
+
+    return {
+      paginator: paginatory,
+      itens: tasksWithUserRoles
+    }
+  }
+
+  async getAllByStreamId(
+    streamId: number,
+    paginator: Paginator<Task>,
+    currentUser: ValidateUser
+  ): Promise<Response<Task, ITask>> {
+    // First, get the stream to find its project
+    const stream = await this.streamRepository.findOne({
+      where: { streamId, streamActive: true }
+    })
+
+    if (!stream) {
+      throw new NotFoundException('Stream not found')
+    }
+
+    // Check if user has seeChildren power in the stream's project
+    const projectMember = await this.projectMemberRepository.findOne({
+      where: {
+        projectId: stream.projectId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+
+    if (!projectMember || !projectMember.role.includes(powers.seeChildren)) {
+      throw new NotFoundException(
+        'Stream not found or insufficient permissions to see tasks'
+      )
+    }
+
+    const {
+      limit = 20,
+      offset = 0,
+      orderBy = 'taskName',
+      direction = 'ASC',
+      filters = []
+    } = paginator
+
+    // Build the query to get tasks of the specified stream
+    const queryBuilder = this.taskRepository
+      .createQueryBuilder('task')
+      .where('task.streamId = :streamId', { streamId })
+      .andWhere('task.taskActive = :active', { active: true })
+
+    // Apply filters
+    filters.forEach((filter) => {
+      const { filterType, field, value } = filter
+      if (filterType && field && value !== undefined) {
+        switch (filterType) {
+          case 'like':
+            queryBuilder.andWhere(`task.${field} LIKE :${field}`, {
+              [field]: `%${value}%`
+            })
+            break
+          case 'equal':
+            queryBuilder.andWhere(`task.${field} = :${field}`, {
+              [field]: value
+            })
+            break
+          case 'moreThan':
+            queryBuilder.andWhere(`task.${field} > :${field}`, {
+              [field]: value
+            })
+            break
+          case 'lessThan':
+            queryBuilder.andWhere(`task.${field} < :${field}`, {
+              [field]: value
+            })
+            break
+        }
+      }
+    })
+
+    // Get total count
+    const totalItems = await queryBuilder.getCount()
+
+    // Apply pagination and ordering
+    const tasks = await queryBuilder
+      .orderBy(`task.${orderBy}`, direction)
+      .skip(offset)
+      .take(limit)
+      .getMany()
+
+    // Get current user role for each task (if member)
+    const tasksWithUserRoles = await Promise.all(
+      tasks.map(async (task) => {
+        const currentUserMember = await this.taskMemberRepository.findOne({
+          where: {
+            taskId: task.taskId,
+            userId: currentUser.userId,
+            active: true
+          }
+        })
+
+        return {
+          taskId: task.taskId,
+          taskName: task.taskName,
+          taskDescription: task.taskDescription,
+          taskStartDate: task.taskStartDate,
+          taskEndDate: task.taskEndDate,
+          taskDeadline: task.taskDeadline,
+          taskStatus: task.taskStatus,
+          taskPriority: task.taskPriority,
+          size: task.size,
+          taskType: task.taskType,
+          taskStartsAt: task.taskStartsAt,
+          duration: task.duration,
+          taskShowInCalendar: task.taskShowInCalendar,
+          orgId: task.orgId,
+          deptId: task.deptId,
+          teamId: task.teamId,
+          squadId: task.squadId,
+          projectId: task.projectId,
+          streamId: task.streamId,
+          productId: task.productId,
+          processId: task.processId,
+          phaseId: task.phaseId,
+          activityDomainId: task.activityDomainId,
+          dependencyThread: task.dependencyThread,
+          taskActive: task.taskActive,
+          userRole: currentUserMember?.role || ''
+        } as ITask
+      })
+    )
+
+    // Build paginator
+    const paginatory: Paginator<Task> = {
+      limit,
+      offset,
+      orderBy,
+      direction,
+      filters,
+      totalItems
+    }
+
+    return {
+      paginator: paginatory,
+      itens: tasksWithUserRoles
+    }
+  }
+
+  async getAllByProductId(
+    productId: number,
+    paginator: Paginator<Task>,
+    currentUser: ValidateUser
+  ): Promise<Response<Task, ITask>> {
+    // First, check if user has seeChildren power in the product
+    const productMember = await this.productMemberRepository.findOne({
+      where: {
+        productId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+
+    if (!productMember || !productMember.role.includes(powers.seeChildren)) {
+      throw new NotFoundException(
+        'Product not found or insufficient permissions to see tasks'
+      )
+    }
+
+    const {
+      limit = 20,
+      offset = 0,
+      orderBy = 'taskName',
+      direction = 'ASC',
+      filters = []
+    } = paginator
+
+    // Build the query to get tasks of the specified product
+    const queryBuilder = this.taskRepository
+      .createQueryBuilder('task')
+      .where('task.productId = :productId', { productId })
+      .andWhere('task.taskActive = :active', { active: true })
+
+    // Apply filters
+    filters.forEach((filter) => {
+      const { filterType, field, value } = filter
+      if (filterType && field && value !== undefined) {
+        switch (filterType) {
+          case 'like':
+            queryBuilder.andWhere(`task.${field} LIKE :${field}`, {
+              [field]: `%${value}%`
+            })
+            break
+          case 'equal':
+            queryBuilder.andWhere(`task.${field} = :${field}`, {
+              [field]: value
+            })
+            break
+          case 'moreThan':
+            queryBuilder.andWhere(`task.${field} > :${field}`, {
+              [field]: value
+            })
+            break
+          case 'lessThan':
+            queryBuilder.andWhere(`task.${field} < :${field}`, {
+              [field]: value
+            })
+            break
+        }
+      }
+    })
+
+    // Get total count
+    const totalItems = await queryBuilder.getCount()
+
+    // Apply pagination and ordering
+    const tasks = await queryBuilder
+      .orderBy(`task.${orderBy}`, direction)
+      .skip(offset)
+      .take(limit)
+      .getMany()
+
+    // Get current user role for each task (if member)
+    const tasksWithUserRoles = await Promise.all(
+      tasks.map(async (task) => {
+        const currentUserMember = await this.taskMemberRepository.findOne({
+          where: {
+            taskId: task.taskId,
+            userId: currentUser.userId,
+            active: true
+          }
+        })
+
+        return {
+          taskId: task.taskId,
+          taskName: task.taskName,
+          taskDescription: task.taskDescription,
+          taskStartDate: task.taskStartDate,
+          taskEndDate: task.taskEndDate,
+          taskDeadline: task.taskDeadline,
+          taskStatus: task.taskStatus,
+          taskPriority: task.taskPriority,
+          size: task.size,
+          taskType: task.taskType,
+          taskStartsAt: task.taskStartsAt,
+          duration: task.duration,
+          taskShowInCalendar: task.taskShowInCalendar,
+          orgId: task.orgId,
+          deptId: task.deptId,
+          teamId: task.teamId,
+          squadId: task.squadId,
+          projectId: task.projectId,
+          streamId: task.streamId,
+          productId: task.productId,
+          processId: task.processId,
+          phaseId: task.phaseId,
+          activityDomainId: task.activityDomainId,
+          dependencyThread: task.dependencyThread,
+          taskActive: task.taskActive,
+          userRole: currentUserMember?.role || ''
+        } as ITask
+      })
+    )
+
+    // Build paginator
+    const paginatory: Paginator<Task> = {
+      limit,
+      offset,
+      orderBy,
+      direction,
+      filters,
+      totalItems
+    }
+
+    return {
+      paginator: paginatory,
+      itens: tasksWithUserRoles
+    }
+  }
+
+  async getAllByProcessId(
+    processId: number,
+    paginator: Paginator<Task>,
+    currentUser: ValidateUser
+  ): Promise<Response<Task, ITask>> {
+    // First, check if user has seeChildren power in the process
+    const processMember = await this.processMemberRepository.findOne({
+      where: {
+        processId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+
+    if (!processMember || !processMember.role.includes(powers.seeChildren)) {
+      throw new NotFoundException(
+        'Process not found or insufficient permissions to see tasks'
+      )
+    }
+
+    const {
+      limit = 20,
+      offset = 0,
+      orderBy = 'taskName',
+      direction = 'ASC',
+      filters = []
+    } = paginator
+
+    // Build the query to get tasks of the specified process
+    const queryBuilder = this.taskRepository
+      .createQueryBuilder('task')
+      .where('task.processId = :processId', { processId })
+      .andWhere('task.taskActive = :active', { active: true })
+
+    // Apply filters
+    filters.forEach((filter) => {
+      const { filterType, field, value } = filter
+      if (filterType && field && value !== undefined) {
+        switch (filterType) {
+          case 'like':
+            queryBuilder.andWhere(`task.${field} LIKE :${field}`, {
+              [field]: `%${value}%`
+            })
+            break
+          case 'equal':
+            queryBuilder.andWhere(`task.${field} = :${field}`, {
+              [field]: value
+            })
+            break
+          case 'moreThan':
+            queryBuilder.andWhere(`task.${field} > :${field}`, {
+              [field]: value
+            })
+            break
+          case 'lessThan':
+            queryBuilder.andWhere(`task.${field} < :${field}`, {
+              [field]: value
+            })
+            break
+        }
+      }
+    })
+
+    // Get total count
+    const totalItems = await queryBuilder.getCount()
+
+    // Apply pagination and ordering
+    const tasks = await queryBuilder
+      .orderBy(`task.${orderBy}`, direction)
+      .skip(offset)
+      .take(limit)
+      .getMany()
+
+    // Get current user role for each task (if member)
+    const tasksWithUserRoles = await Promise.all(
+      tasks.map(async (task) => {
+        const currentUserMember = await this.taskMemberRepository.findOne({
+          where: {
+            taskId: task.taskId,
+            userId: currentUser.userId,
+            active: true
+          }
+        })
+
+        return {
+          taskId: task.taskId,
+          taskName: task.taskName,
+          taskDescription: task.taskDescription,
+          taskStartDate: task.taskStartDate,
+          taskEndDate: task.taskEndDate,
+          taskDeadline: task.taskDeadline,
+          taskStatus: task.taskStatus,
+          taskPriority: task.taskPriority,
+          size: task.size,
+          taskType: task.taskType,
+          taskStartsAt: task.taskStartsAt,
+          duration: task.duration,
+          taskShowInCalendar: task.taskShowInCalendar,
+          orgId: task.orgId,
+          deptId: task.deptId,
+          teamId: task.teamId,
+          squadId: task.squadId,
+          projectId: task.projectId,
+          streamId: task.streamId,
+          productId: task.productId,
+          processId: task.processId,
+          phaseId: task.phaseId,
+          activityDomainId: task.activityDomainId,
+          dependencyThread: task.dependencyThread,
+          taskActive: task.taskActive,
+          userRole: currentUserMember?.role || ''
+        } as ITask
+      })
+    )
+
+    // Build paginator
+    const paginatory: Paginator<Task> = {
+      limit,
+      offset,
+      orderBy,
+      direction,
+      filters,
+      totalItems
+    }
+
+    return {
+      paginator: paginatory,
+      itens: tasksWithUserRoles
+    }
+  }
+
+  async getAllByPhaseId(
+    phaseId: number,
+    paginator: Paginator<Task>,
+    currentUser: ValidateUser
+  ): Promise<Response<Task, ITask>> {
+    // First, get the phase to find its process
+    const phase = await this.phaseRepository.findOne({
+      where: { phaseId, phaseActive: true }
+    })
+
+    if (!phase) {
+      throw new NotFoundException('Phase not found')
+    }
+
+    // Check if user has seeChildren power in the phase's process
+    const processMember = await this.processMemberRepository.findOne({
+      where: {
+        processId: phase.processId,
+        userId: currentUser.userId,
+        active: true
+      }
+    })
+
+    if (!processMember || !processMember.role.includes(powers.seeChildren)) {
+      throw new NotFoundException(
+        'Phase not found or insufficient permissions to see tasks'
+      )
+    }
+
+    const {
+      limit = 20,
+      offset = 0,
+      orderBy = 'taskName',
+      direction = 'ASC',
+      filters = []
+    } = paginator
+
+    // Build the query to get tasks of the specified phase
+    const queryBuilder = this.taskRepository
+      .createQueryBuilder('task')
+      .where('task.phaseId = :phaseId', { phaseId })
+      .andWhere('task.taskActive = :active', { active: true })
+
+    // Apply filters
+    filters.forEach((filter) => {
+      const { filterType, field, value } = filter
+      if (filterType && field && value !== undefined) {
+        switch (filterType) {
+          case 'like':
+            queryBuilder.andWhere(`task.${field} LIKE :${field}`, {
+              [field]: `%${value}%`
+            })
+            break
+          case 'equal':
+            queryBuilder.andWhere(`task.${field} = :${field}`, {
+              [field]: value
+            })
+            break
+          case 'moreThan':
+            queryBuilder.andWhere(`task.${field} > :${field}`, {
+              [field]: value
+            })
+            break
+          case 'lessThan':
+            queryBuilder.andWhere(`task.${field} < :${field}`, {
+              [field]: value
+            })
+            break
+        }
+      }
+    })
+
+    // Get total count
+    const totalItems = await queryBuilder.getCount()
+
+    // Apply pagination and ordering
+    const tasks = await queryBuilder
+      .orderBy(`task.${orderBy}`, direction)
+      .skip(offset)
+      .take(limit)
+      .getMany()
+
+    // Get current user role for each task (if member)
+    const tasksWithUserRoles = await Promise.all(
+      tasks.map(async (task) => {
+        const currentUserMember = await this.taskMemberRepository.findOne({
+          where: {
+            taskId: task.taskId,
+            userId: currentUser.userId,
+            active: true
+          }
+        })
+
+        return {
+          taskId: task.taskId,
+          taskName: task.taskName,
+          taskDescription: task.taskDescription,
+          taskStartDate: task.taskStartDate,
+          taskEndDate: task.taskEndDate,
+          taskDeadline: task.taskDeadline,
+          taskStatus: task.taskStatus,
+          taskPriority: task.taskPriority,
+          size: task.size,
+          taskType: task.taskType,
+          taskStartsAt: task.taskStartsAt,
+          duration: task.duration,
+          taskShowInCalendar: task.taskShowInCalendar,
+          orgId: task.orgId,
+          deptId: task.deptId,
+          teamId: task.teamId,
+          squadId: task.squadId,
+          projectId: task.projectId,
+          streamId: task.streamId,
+          productId: task.productId,
+          processId: task.processId,
+          phaseId: task.phaseId,
+          activityDomainId: task.activityDomainId,
+          dependencyThread: task.dependencyThread,
+          taskActive: task.taskActive,
+          userRole: currentUserMember?.role || ''
+        } as ITask
+      })
+    )
+
+    // Build paginator
+    const paginatory: Paginator<Task> = {
+      limit,
+      offset,
+      orderBy,
+      direction,
+      filters,
+      totalItems
+    }
+
+    return {
+      paginator: paginatory,
+      itens: tasksWithUserRoles
     }
   }
 }

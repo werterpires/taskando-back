@@ -1,7 +1,7 @@
 import { userRoleEnum } from 'src/constants/roles.enum'
 
 export interface IActivityDomain {
-  areaId: number
+  activityDomainId: number
   activityDomainName: string
   activityDomainPercentual: number
   deptId?: number
@@ -9,4 +9,9 @@ export interface IActivityDomain {
   teamId?: number
   squadId?: number
   currentUserRoles: userRoleEnum
+}
+
+export interface IActivityDomainBasic {
+  activityDomainId: number
+  activityDomainName: string
 }

@@ -33,6 +33,11 @@ export class ActivityDomainsController {
     return await this.activityDomainsService.getAll(query, currentUser)
   }
 
+  @Get('without-parent')
+  async getAllWithoutParent(@CurrentUser() currentUser: ValidateUser) {
+    return await this.activityDomainsService.getAllWithoutParent(currentUser)
+  }
+
   @Get('organization/:orgId')
   async getAllByOrgId(
     @Param('orgId', ParseIntPipe) orgId: number,
