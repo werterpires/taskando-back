@@ -2,6 +2,12 @@
 
 API NestJS do Taskando, portada da exportação `Taskando-completo` para PostgreSQL. O domínio mantém os contratos HTTP existentes, hierarquia livre, papéis por item, aprovações, dependências DAG, recorrência, fila cíclica, templates, notificações, lixeira e MCP.
 
+## Estrutura Nest
+
+O código de entrada está organizado por módulos de negócio em `src/modules`: cada módulo possui `*.module.ts`, `*.controller.ts` e `*.service.ts`. Os controllers cuidam somente do transporte HTTP; os services são a porta de entrada do domínio; `src/db` concentra persistência, autorização e regras compartilhadas. `src/app/api` é um conjunto interno de handlers portados da origem, isolado atrás dos services para que possa ser substituído progressivamente sem alterar as URLs públicas.
+
+Os módulos principais são `tasks`, `projects`, `organizations`, `structure`, `planning`, `recurrence`, `lists`, `notifications` e `system`. `src/modules/core` fornece autenticação e o contexto transacional compartilhado.
+
 ## Ambiente local
 
 Requisitos: Node.js 22.13 ou superior, npm e Docker com Compose.

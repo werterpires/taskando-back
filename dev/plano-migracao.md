@@ -3,6 +3,8 @@
 Autorizada nesta sessão: executar aqui. Fonte: `Taskando-completo/taskando-export`.
 A nova implementação ocupa `taskando-back` e `taskandoFront`. O conteúdo anterior foi removido por instrução explícita do usuário; os repositórios Git foram mantidos.
 
+A entrada da API foi reorganizada em módulos Nest convencionais (`module`, `controller`, `service`) por domínio. Os handlers portados ficaram isolados como camada interna temporária, atrás desses services, para permitir uma substituição incremental sem quebrar os contratos HTTP.
+
 ## Objetivo e arquitetura
 
 Recriar a experiência do Taskando em Angular standalone, servida por API NestJS com autenticação Google OpenID Connect e PostgreSQL. Preservar os contratos HTTP e regras existentes, portando o domínio TypeScript e Drizzle para PostgreSQL. Os handlers de domínio tornam-se operações chamadas por controllers NestJS; nenhuma dependência de React, Next, Workers ou Sites na aplicação nova.
@@ -48,5 +50,7 @@ Verificações concluídas em 9 de setembro de 2026:
 - confirmação de IDs, relacionamento e conversão de booleanos no PostgreSQL;
 - execução da API e respostas HTTP 200 em `/api/health` e 401 sem sessão em `/api/auth/me`;
 - `git diff --check` nos dois repositórios.
+
+Refatoração estrutural adicional concluída após revisão: os 71 controllers de domínio foram distribuídos em nove módulos Nest (`tasks`, `projects`, `organizations`, `structure`, `planning`, `recurrence`, `lists`, `notifications` e `system`), cada um com controller, service e module próprios. O `AppModule` agora compõe esses módulos e um `CoreModule` global; a inicialização registrou 130 rotas Nest. A camada `src/app/api` permanece apenas como implementação interna portável dos handlers de origem, sem exposição direta no módulo principal.
 
 A exportação fornecida não inclui o banco D1 vivo nem credenciais Google. A transferência dos dados reais usa `npm run db:import` quando o arquivo exportado estiver disponível; o login real usa as credenciais descritas em `.env.example`.
