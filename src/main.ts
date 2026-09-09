@@ -1,40 +1,31 @@
-import { NestFactory } from '@nestjs/core'
-import { AppModule } from './app.module'
-import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface'
-import { ValidationPipe } from '@nestjs/common'
-import { CustomLoggerService } from './shared/utils-module/custom-logger/custom-logger.service'
-import { DataSource } from 'typeorm'
-import { runSeeds } from './database/seeds'
-
-const corsOptions: CorsOptions = {
-  origin: 'http://localhost:4200'
-}
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    bufferLogs: true,
-    cors: corsOptions
-  })
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true
-    })
-  )
-  app.useLogger(new CustomLoggerService())
-
-  // Run seeds on startup (only in development)
-  if (process.env.NODE_ENV !== 'production') {
-    try {
-      const dataSource = app.get(DataSource)
-      await runSeeds(dataSource)
-    } catch (error) {
-      console.error('Seed error:', error)
-    }
+import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import type { Request, Response, NextFunction } from 'express';
+import { AppModule } from './app.module';
+import { appOrigin } from './auth/auth.service';
+@Catch()
+class SafeErrors implements ExceptionFilter {
+  catch(error: unknown, host: ArgumentsHost) {
+    const status = error instanceof HttpException ? error.getStatus() : error instanceof SyntaxError ? 400 : 500;
+    host.switchToHttp().getResponse<Response>().status(status).json({ error: status === 500 ? 'Não foi possível concluir a operação.' : error instanceof HttpException ? error.message : 'Dados inválidos.' });
   }
-
-  await app.listen(process.env.PORT ?? 3000)
 }
-
-bootstrap().catch(console.error)
+export async function createApp() {
+  const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
+  app.use(helmet()); app.use(cookieParser());
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const mcp = ['/mcp', '/api/integrations/mcp'].includes(req.path);
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !mcp && req.headers.origin !== appOrigin()) { res.status(403).json({ error: 'Origem inválida.' }); return; }
+    next();
+  });
+  app.useGlobalFilters(new SafeErrors()); app.enableShutdownHooks();
+  return app;
+}
+if (require.main === module) {
+  if (!process.env.DATABASE_URL) throw new Error('Configure DATABASE_URL.');
+  void createApp().then(app => app.listen(Number(process.env.PORT ?? 3000), '127.0.0.1'));
+}
