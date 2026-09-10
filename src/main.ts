@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from '@nestjs/common';
@@ -28,5 +27,10 @@ export async function createApp() {
 }
 if (require.main === module) {
   if (!process.env.DATABASE_URL) throw new Error('Configure DATABASE_URL.');
-  void createApp().then(app => app.listen(Number(process.env.PORT ?? 3000), process.env.HOST ?? '0.0.0.0'));
+  const port = Number(process.env.PORT ?? 3000);
+  const host = process.env.HOST ?? '0.0.0.0';
+  void createApp().then(async (app) => {
+    await app.listen(port, host);
+    console.log(`Taskando API disponível em ${host}:${port}.`);
+  });
 }
