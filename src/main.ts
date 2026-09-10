@@ -28,5 +28,5 @@ export async function createApp() {
 }
 if (require.main === module) {
   if (!process.env.DATABASE_URL) throw new Error('Configure DATABASE_URL.');
-  void createApp().then(app => app.listen(Number(process.env.PORT ?? 3000), '127.0.0.1'));
+  void createApp().then(app => app.listen(Number(process.env.PORT ?? 3000), process.env.HOST ?? '0.0.0.0'));
 }
