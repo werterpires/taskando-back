@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from '@nestjs/common';

@@ -17,10 +17,15 @@ cp .env.example .env
 docker compose up -d postgres
 npm install
 npm run db:migrate
+npm run db:seed
 npm run dev
 ```
 
-Configure no `.env` um cliente OAuth Web do Google. O redirect URI local deve ser exatamente `http://localhost:4200/api/auth/google/callback`. O frontend encaminha `/api` para esta API, que escuta em `127.0.0.1:3000`.
+Antes de executar `db:seed`, defina no `.env` uma `TASKANDO_SEED_PASSWORD` de pelo menos oito caracteres. Nome e e-mail iniciais podem ser alterados por `TASKANDO_SEED_NAME` e `TASKANDO_SEED_EMAIL`; os padrões são `Administrador` e `admin@taskando.local`. A seed é idempotente e não redefine a senha de uma credencial já existente.
+
+Em produção, configure `SSL_CA_PATH` com a CA do PostgreSQL. Para provedores que exigem mTLS, configure também `SSL_CERT_PATH` e `SSL_KEY_PATH` com o certificado e a chave privada do cliente; os dois devem ser fornecidos juntos. O backend, as migrations, a seed e o importador usarão esses arquivos com validação do certificado do servidor. Deixe as três variáveis vazias ou ausentes no ambiente local para conectar sem SSL.
+
+O frontend encaminha `/api` para esta API, que escuta em `127.0.0.1:3000`. Não há cadastro público: o usuário inicial vem da seed e qualquer usuário autenticado pode criar outra conta, informando a senha inicial. Cada usuário pode trocar a própria senha na tela de configurações. As senhas são armazenadas como hashes `scrypt` com salt individual. As variáveis OAuth do Google são opcionais e ficam reservadas para a retomada futura desse provedor.
 
 ## Migração dos dados do Sites/D1
 
@@ -30,7 +35,7 @@ O pacote recebido inclui schema e migrations, mas não inclui os dados vivos. Ex
 npm run db:import -- /caminho/para/taskando-d1.sql
 ```
 
-O importador preserva IDs, executa tudo em uma transação, converte inteiros SQLite em booleanos PostgreSQL e ignora dados já existentes. Sessões e identidades Google são criadas no primeiro login; um usuário importado é vinculado somente quando o Google fornece o mesmo e-mail verificado.
+O importador preserva IDs, executa tudo em uma transação, converte inteiros SQLite em booleanos PostgreSQL e ignora dados já existentes. Para conceder acesso inicial a um usuário importado sem credencial, configure o e-mail dele em `TASKANDO_SEED_EMAIL` e execute a seed uma vez.
 
 ## Verificação
 

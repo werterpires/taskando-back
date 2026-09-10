@@ -497,6 +497,12 @@ export const googleIdentities = pgTable("google_identities", {
   subject: text("subject").primaryKey(),
   userId: text("user_id").notNull().unique().references(() => users.id),
 });
+export const passwordCredentials = pgTable("password_credentials", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: text("created_at").notNull().default(sql`to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`),
+  updatedAt: text("updated_at").notNull().default(sql`to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`),
+});
 export const sessions = pgTable("sessions", {
   tokenHash: text("token_hash").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id),

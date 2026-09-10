@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { Pool } from 'pg';
+import { databaseSslOptions } from '../src/db/ssl';
 
 const excludedTables = new Set(['__drizzle_migrations', 'd1_migrations', 'sqlite_sequence']);
 const tableOrder = [
@@ -40,7 +41,7 @@ async function main() {
     finally { generated.close(); }
   }
   const sqlite = new DatabaseSync(sqlitePath, { readOnly: true });
-  const pg = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  const pg = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, ssl: databaseSslOptions() });
   const client = await pg.connect();
   try {
   const discovered = (sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[])

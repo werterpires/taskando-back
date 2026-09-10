@@ -2,7 +2,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool, type PoolClient } from 'pg';
 import * as schema from './schema';
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 10 });
+import { databaseSslOptions } from './ssl';
+export const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 10, ssl: databaseSslOptions() });
 function connect(client: Pool | PoolClient) {
   const db = drizzle(client, { schema });
   return Object.assign(db, {

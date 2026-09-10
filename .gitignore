@@ -4,6 +4,9 @@ dist/
 .env
 .env.*
 !.env.example
+certificate.pem
+ca-certificate.crt
+private-key.key
 playwright-report/
 test-results/
 dev/tmp/
