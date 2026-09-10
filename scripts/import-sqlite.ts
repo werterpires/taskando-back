@@ -44,10 +44,11 @@ async function main() {
   const pg = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, ssl: databaseSslOptions() });
   const client = await pg.connect();
   try {
+  const [{ schema: destinationSchema }] = (await client.query<{ schema: string }>('SELECT current_schema() AS schema')).rows;
   const discovered = (sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[])
     .map(({ name }) => name).filter((name) => !excludedTables.has(name));
   const sourceTables = [...tableOrder.filter((table) => discovered.includes(table)), ...discovered.filter((table) => !tableOrder.includes(table))];
-  const destinationTables = new Set((await client.query<{ table_name: string }>("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")).rows.map((row) => row.table_name));
+  const destinationTables = new Set((await client.query<{ table_name: string }>('SELECT table_name FROM information_schema.tables WHERE table_schema = $1', [destinationSchema])).rows.map((row) => row.table_name));
   const unknown = sourceTables.filter((table) => !destinationTables.has(table));
   if (unknown.length) throw new Error(`O destino não reconhece estas tabelas: ${unknown.join(', ')}`);
 
@@ -56,7 +57,7 @@ async function main() {
   let total = 0;
   for (const table of sourceTables) {
     const columns = (sqlite.prepare(`PRAGMA table_info(${quote(table)})`).all() as { name: string }[]).map(({ name }) => name);
-    const destinationColumns = new Set((await client.query<{ column_name: string }>('SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2', ['public', table])).rows.map((row) => row.column_name));
+    const destinationColumns = new Set((await client.query<{ column_name: string }>('SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2', [destinationSchema, table])).rows.map((row) => row.column_name));
     const shared = columns.filter((column) => destinationColumns.has(column));
     if (!shared.length) continue;
     let rows = sqlite.prepare(`SELECT ${shared.map(quote).join(', ')} FROM ${quote(table)}`).all() as Record<string, unknown>[];
