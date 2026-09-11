@@ -1,7 +1,7 @@
 import { operations } from "./operations";
 import { operationCatalog } from "./catalog";
 import { taskandoGuide, guideUri } from "./guide";
-import { allowed, getItem, searchItems, nextTasks, itemTypes, taskReadiness } from "./query";
+import { allowed, getItem, searchItems, nextTaskForItem, nextTasks, itemTypes, taskReadiness } from "./query";
 import { ensurePersonalContext } from "../db/current-user";
 import { tasks } from "../db/schema";
 import { eq } from "drizzle-orm";
@@ -18,6 +18,7 @@ export const mcpTools = [
  {name:"taskando_describe_operation",description:"Sem operation lista o catálogo. Com operation (ex.: POST /api/processes) explica parâmetros/corpo antes de executar.",inputSchema:schema({operation:string})},
  {name:"taskando_get",description:"Obtém item por tipo/ID, descrição completa e pai. Inclui tarefas e subtarefas.",inputSchema:schema({type:{enum:itemTypes},id:string},["type","id"])},
  {name:"taskando_search",description:"Busca itens acessíveis por tipo e título/nome, com paginação; inclua subtarefas usando type=task. Siga nextCursor até null.",inputSchema:schema({type:{enum:itemTypes},query:string,cursor:string,limit:{type:"integer",minimum:1,maximum:100}},["type"])},
+ {name:"taskando_next_task",description:"Retorna rapidamente uma tarefa aberta (planned, todo, in_progress ou awaiting_approval) dentro do item informado, em qualquer profundidade. Escolhe a menor dueDate, sorteia empates e inclui o pai e os IDs das dependentes diretas visíveis.",inputSchema:schema({type:{enum:itemTypes},id:string},["type","id"])},
  {name:"taskando_next_tasks",description:"Próximas tarefas executáveis, bloqueadas e prazos do projeto inteiro, incluindo descendentes/subtarefas. Leia todas as páginas. readyOnly padrão true; dueBefore inclusivo; today padrão UTC.",inputSchema:schema({projectId:string,readyOnly:{type:"boolean"},dueBefore:string,today:string,cursor:string})},
  {name:"taskando_create_task",description:"Cria tarefa no pai indicado ou subtarefa em parentTaskId; sem pai cria no espaço pessoal. Leia o guia para regras dos tipos.",inputSchema:schema(workFields,["title"])},
  {name:"taskando_update_task",description:"Edita tarefa/subtarefa, documenta ou muda status; respeita dependências, aprovações e decisões de cancelamento.",inputSchema:schema({id:string,body:object},["id","body"])},
@@ -55,6 +56,7 @@ export async function callMcpTool(name:string,args:Record<string,unknown>) {
  }
  if(name==="taskando_get") return getItem(args.type as typeof itemTypes[number],String(args.id));
  if(name==="taskando_search") return searchItems(args);
+ if(name==="taskando_next_task") return nextTaskForItem(args);
  if(name==="taskando_next_tasks") return nextTasks(args);
  if(name==="taskando_update_task") return invokeOperation("PATCH /api/tasks/[id]",{id:String(args.id)},{},args.body as Record<string,unknown>);
  if(name==="taskando_create_task") {
