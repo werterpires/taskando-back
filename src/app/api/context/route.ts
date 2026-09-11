@@ -2,16 +2,21 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { canAccessOrganization, canAccessProcess, canAccessProduct, canAccessProject, canAccessTask, canItem } from "../../../db/authorization";
 import { ensurePersonalContext } from "../../../db/current-user";
 import { parentNamesByChild } from "../../../db/parent-labels";
+import { rootContext } from "../../../db/root-context";
 import { departments, hierarchyAttachments, itemRoleAssignments, organizationMembers, organizations, processes, products, projects, taskAssignees, tasks, teams } from "../../../db/schema";
 
-type ParentType = "personal" | "organization" | "department" | "team";
+type ParentType = "root" | "personal" | "organization" | "department" | "team";
 type ItemType = "department" | "team" | "project" | "product" | "process" | "task";
 
 export async function GET(request: Request) {
   const context = await ensurePersonalContext();
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
   const url = new URL(request.url); const parentType = url.searchParams.get("parentType") as ParentType | null; const parentId = url.searchParams.get("parentId");
-  if (!parentType || !["personal", "organization", "department", "team"].includes(parentType)) return Response.json({ error: "Contexto inválido." }, { status: 400 });
+  if (!parentType || !["root", "personal", "organization", "department", "team"].includes(parentType)) return Response.json({ error: "Contexto inválido." }, { status: 400 });
+  if (parentType === "root") {
+    if (url.searchParams.has("parentId")) return Response.json({ error: "A raiz global não aceita parentId." }, { status: 400 });
+    return Response.json(await rootContext(context));
+  }
 
   let organizationId: string | null = null; let canCreate = parentType === "personal";
   if (parentType === "organization") {
