@@ -7,6 +7,7 @@ import { parseRecurrenceDefinition, recurrenceOccurrenceDescriptor, recurrenceTa
 import { auditEvents, checklistItems, departments, dependencyEdges, fronts, hierarchyAttachments, itemRoleAssignments, itemTemplates, notifications, organizationMembers, organizations, phases, processes, products, projects, recurrenceOccurrences, recurrenceSeries, tags, taskAssignees, taskTags, tasks, teams, users } from "./schema";
 import { canBeSubtask, canHaveSubtasks, commitmentTimeError, dateMarkerError, eventTimeError, taskTypeError, taskTypes, type TaskParentType, type TaskType } from "./task-types";
 import type { ensurePersonalContext } from "./current-user";
+import { getEffectiveCyclicQueueState } from "./cyclic";
 
 type Context = NonNullable<Awaited<ReturnType<typeof ensurePersonalContext>>>;
 type SnapshotNode = { localId: string; type: TemplateSourceType; fields: Record<string, unknown>; children: SnapshotNode[] };
@@ -115,7 +116,7 @@ export async function listInstantiationTargets(context: Context, rootType: Templ
 }
 
 function datesInFields(fields: Record<string, unknown>) {
-  const values = [fields.dueDate, fields.dateAt, fields.startAt, fields.endAt].flatMap((value) => typeof value === "string" && !Number.isNaN(new Date(value.length === 10 ? `${value}T00:00:00.000Z` : value).getTime()) ? [value.slice(0, 10)] : []);
+  const values = [fields.taskType === "cyclic" ? null : fields.dueDate, fields.dateAt, fields.startAt, fields.endAt].flatMap((value) => typeof value === "string" && !Number.isNaN(new Date(value.length === 10 ? `${value}T00:00:00.000Z` : value).getTime()) ? [value.slice(0, 10)] : []);
   const recurrence = fields.recurrenceDefinition;
   if (recurrence && typeof recurrence === "object") { const start = (recurrence as { startDate?: unknown }).startDate; if (typeof start === "string" && datePattern.test(start)) values.push(start); }
   return values;
@@ -125,7 +126,7 @@ export function templateDateAnchor(nodes: Array<{ node: SnapshotNode }>) { retur
 const addDays = (value: string, days: number) => { const date = new Date(value.length === 10 ? `${value}T00:00:00.000Z` : value); date.setUTCDate(date.getUTCDate() + days); return value.length === 10 ? date.toISOString().slice(0, 10) : date.toISOString(); };
 function shiftedFields(fields: Record<string, unknown>, deltaDays: number) {
   const next = { ...fields };
-  for (const key of ["dueDate", "dateAt", "startAt", "endAt"] as const) if (typeof next[key] === "string") next[key] = addDays(next[key] as string, deltaDays);
+  for (const key of ["dueDate", "dateAt", "startAt", "endAt"] as const) if (typeof next[key] === "string" && !(key === "dueDate" && fields.taskType === "cyclic")) next[key] = addDays(next[key] as string, deltaDays);
   if (next.recurrenceDefinition && typeof next.recurrenceDefinition === "object") { const recurrence = { ...(next.recurrenceDefinition as Record<string, unknown>) }; if (typeof recurrence.startDate === "string") recurrence.startDate = addDays(recurrence.startDate, deltaDays); if (typeof recurrence.endDate === "string") recurrence.endDate = addDays(recurrence.endDate, deltaDays); next.recurrenceDefinition = recurrence; }
   return next;
 }
@@ -181,7 +182,7 @@ export async function instantiateTemplate(context: Context, templateId: string, 
     if (node.type === "phase") statements.push(context.db.insert(phases).values({ ...common, processId: parentId!, status: "planned", position: Number.isInteger(fields.position) ? Number(fields.position) : 999999 }));
     if (node.type === "task") {
       const taskType = fields.taskType as TaskType; const isSubtask = parent?.type === "task"; const cyclicPosition = taskType === "cyclic" ? (cyclicMax ?? 0) + (++cyclicOffset) : 999999;
-      statements.push(context.db.insert(tasks).values({ ...common, taskType, status: "todo", approvalRequired: taskApprovalRequired(taskType, boolean(fields.approvalRequired)), dueDate: typeof fields.dueDate === "string" ? fields.dueDate : null, dateAt: taskType === "date" && typeof fields.dateAt === "string" ? fields.dateAt : null, startAt: (taskType === "commitment" || taskType === "event" || taskType === "scheduled") && typeof fields.startAt === "string" ? fields.startAt : null, endAt: taskType === "event" && typeof fields.endAt === "string" ? fields.endAt : null, durationMinutes: typeof fields.durationMinutes === "number" ? fields.durationMinutes : null, relevance: taskType === "cyclic" && Number.isInteger(fields.relevance) ? Math.min(5, Math.max(1, Number(fields.relevance))) : null, cyclicPosition, cyclicReentryCount: 0, parentTaskId: isSubtask ? parentId : null, subtaskPosition: isSubtask && Number.isInteger(fields.subtaskPosition) ? Number(fields.subtaskPosition) : null }));
+      statements.push(context.db.insert(tasks).values({ ...common, taskType, status: "todo", approvalRequired: taskApprovalRequired(taskType, boolean(fields.approvalRequired)), dueDate: taskType !== "cyclic" && typeof fields.dueDate === "string" ? fields.dueDate : null, dateAt: taskType === "date" && typeof fields.dateAt === "string" ? fields.dateAt : null, startAt: (taskType === "commitment" || taskType === "event" || taskType === "scheduled") && typeof fields.startAt === "string" ? fields.startAt : null, endAt: taskType === "event" && typeof fields.endAt === "string" ? fields.endAt : null, durationMinutes: typeof fields.durationMinutes === "number" ? fields.durationMinutes : null, relevance: taskType === "cyclic" && Number.isInteger(fields.relevance) ? Math.min(5, Math.max(1, Number(fields.relevance))) : null, cyclicPosition, cyclicReentryCount: 0, parentTaskId: isSubtask ? parentId : null, subtaskPosition: isSubtask && Number.isInteger(fields.subtaskPosition) ? Number(fields.subtaskPosition) : null }));
       for (const assigneeId of assigneeIds) { statements.push(context.db.insert(taskAssignees).values({ taskId: id, userId: assigneeId })); if (assigneeId !== ownerUserId) statements.push(context.db.insert(itemRoleAssignments).values({ id: crypto.randomUUID(), itemType: "task", itemId: id, userId: assigneeId, role: "executor" }).onConflictDoNothing()); if (assigneeId !== context.user.id) statements.push(context.db.insert(notifications).values({ id: crypto.randomUUID(), recipientUserId: assigneeId, actorUserId: context.user.id, taskId: id, type: "assignment", eventKey: `assignment:${id}:${assigneeId}`, summary: `${context.user.displayName} atribuiu a tarefa “${title}” a você.` })); }
       for (const name of Array.isArray(fields.tags) ? fields.tags.map((tag) => text(tag, 40)).filter(Boolean) : []) statements.push(context.db.insert(taskTags).values({ taskId: id, tagId: tagIds.get(name)! }).onConflictDoNothing());
       for (const entry of Array.isArray(fields.checklist) ? fields.checklist : []) { const checklist = entry && typeof entry === "object" ? entry as Record<string, unknown> : {}; const checklistTitle = text(checklist.title, 240); if (checklistTitle) statements.push(context.db.insert(checklistItems).values({ id: crypto.randomUUID(), taskId: id, title: checklistTitle, completed: false, position: Number.isInteger(checklist.position) ? Number(checklist.position) : 999999 })); }
@@ -195,5 +196,6 @@ export async function instantiateTemplate(context: Context, templateId: string, 
   statements.push(context.db.insert(auditEvents).values({ id: crypto.randomUUID(), organizationId: target.organizationId, personalSpaceId: target.organizationId ? null : context.space.id, actorUserId: context.user.id, actorName: context.user.displayName, action, subjectType: loaded.template.sourceType, subjectId: rootId, summary: `instanciou “${rootTitle}” a partir do template “${loaded.template.name}”.` }));
   if (!statements.length) throw new TemplateInstantiationError("O template não possui itens para instanciar.", 409);
   await context.db.batch(statements as [BatchStatement, ...BatchStatement[]]);
+  if (normalized.some(({ node, fields }) => node.type === "task" && fields.taskType === "cyclic")) await getEffectiveCyclicQueueState(context.db, context.space.id);
   return { rootId, rootType: loaded.template.sourceType, title: rootTitle, nodeCount: loaded.nodes.length, dependencyLinkCount: loaded.snapshot.links.dependencies.length, parentName: target.name };
 }

@@ -18,6 +18,14 @@ export function dateKeyInTimeZone(value: Date | string, timeZone = defaultTimeZo
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+export function nextLocalDate(value: Date | string, timeZone = defaultTimeZone) {
+  const today = dateKeyInTimeZone(value, isValidTimeZone(timeZone) ? timeZone : defaultTimeZone);
+  if (!today) return null;
+  const tomorrow = new Date(`${today}T00:00:00.000Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  return tomorrow.toISOString().slice(0, 10);
+}
+
 export function timeInTimeZone(value: Date | string, timeZone = defaultTimeZone) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime()) || !isValidTimeZone(timeZone)) return null;

@@ -23,6 +23,7 @@ export async function allowed(type: ItemType, id: string, capability: "view" = "
 export async function getItem(type: ItemType, id: string) {
   const c = (await ensurePersonalContext())!;
   if (!itemTypes.includes(type) || !await allowed(type, id)) throw new Error("Item não encontrado ou sem acesso.");
+  if (type === "task") await getEffectiveCyclicQueueState(c.db, c.space.id);
   const table = tables[type];
   const [item] = await c.db.select().from(table).where(eq(table.id, id)).limit(1);
   const [parent] = type === "organization" ? [] : await c.db.select().from(hierarchyAttachments).where(and(eq(hierarchyAttachments.childType, type), eq(hierarchyAttachments.childId, id))).limit(1);
@@ -82,6 +83,7 @@ export async function taskReadiness(task: typeof tasks.$inferSelect) {
 export async function nextTasks(args: Record<string, unknown>) {
   const c = (await ensurePersonalContext())!;
   if(args.projectId && !await allowed("project",String(args.projectId))) throw new Error("Projeto não encontrado ou sem acesso.");
+  await getEffectiveCyclicQueueState(c.db, c.space.id);
   const candidates: (typeof tasks.$inferSelect)[] = await c.db.select().from(tasks).where(and(isNull(tasks.deletedAt),or(eq(tasks.status,"planned"),eq(tasks.status,"todo"),eq(tasks.status,"in_progress")),args.cursor?gt(tasks.id,String(args.cursor)):undefined)).orderBy(asc(tasks.id)).limit(26);
   const items = []; const today = typeof args.today === "string" ? args.today : new Date().toISOString().slice(0,10);
   for(const task of candidates.slice(0,25)) {
@@ -171,6 +173,8 @@ export async function nextTaskForItem(args: Record<string, unknown>, random = Ma
   const id = typeof args.id === "string" ? args.id : "";
   if (!itemTypes.includes(type) || !id) throw new Error("Informe um tipo e um ID válidos.");
   if (!await allowedInContext(context, type, id)) throw new Error("Item não encontrado ou sem acesso.");
+
+  await getEffectiveCyclicQueueState(context.db, context.space.id);
 
   const ids = await descendantTaskIds(context, type, id);
   if (!ids.length) return { scope: { type, id }, task: null, ordering: "Menor dueDate; datas nulas por último; empate aleatório." };

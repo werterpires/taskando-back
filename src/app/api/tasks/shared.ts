@@ -6,7 +6,7 @@ import { departments, fronts, hierarchyAttachments, itemRoleAssignments, organiz
 import { commitmentTimeError, dateMarkerError, eventTimeError, taskTypeError, type TaskParentType, type TaskType } from "../../../db/task-types";
 import { taskApprovalRequired } from "../../../db/approval";
 import { createRecurrenceSeries, firstMaterializedTask, materializeSeries, parseRecurrenceDefinition, recurrenceTaskTypes } from "../../../db/recurrence";
-import { nextCyclicPosition, normalizeCyclicRelevance } from "../../../db/cyclic";
+import { dueDateForNewCyclicTask, getEffectiveCyclicQueueState, nextCyclicPosition, normalizeCyclicRelevance } from "../../../db/cyclic";
 
 export type TaskParent = { parentType: TaskParentType | null; parentId: string | null };
 type Context = NonNullable<Awaited<ReturnType<typeof import("../../../db/current-user").ensurePersonalContext>>>;
@@ -62,6 +62,7 @@ export async function createTask(context: Context, payload: {
   if (payload.importance !== undefined && payload.importance !== null && !["low", "medium", "high"].includes(payload.importance)) return { error: "Importância de tarefa inválida." };
   if (payload.urgency !== undefined && payload.urgency !== null && !["low", "medium", "high"].includes(payload.urgency)) return { error: "Urgência de tarefa inválida." };
   if (cyclicRelevance.error) return { error: cyclicRelevance.error };
+  if (taskType === "cyclic" && payload.dueDate !== undefined && payload.dueDate !== null) return { error: "O prazo da Cíclica é automático." };
   const typeError = taskTypeError(taskType, parentType);
   if (typeError) return { error: typeError };
   const timeError = commitmentTimeError(taskType, payload.startAt, payload.durationMinutes);
@@ -97,10 +98,11 @@ export async function createTask(context: Context, payload: {
   }
   const [task] = await context.db.insert(tasks).values({
     id: crypto.randomUUID(), personalSpaceId: context.space.id, authorUserId: context.user.id, ownerUserId: context.user.id,
-    organizationId: target.organizationId, title, description: payload.description?.trim() ?? "", taskType: taskType as TaskType, dueDate: payload.dueDate?.trim() || null, dateAt: taskType === "date" ? payload.dateAt! : null, startAt: taskType === "commitment" || taskType === "event" ? payload.startAt! : null, endAt: taskType === "event" ? payload.endAt! : null, durationMinutes: taskType === "commitment" ? payload.durationMinutes! : null,
+    organizationId: target.organizationId, title, description: payload.description?.trim() ?? "", taskType: taskType as TaskType, dueDate: taskType === "cyclic" ? await dueDateForNewCyclicTask(context.db, context.space.id, cyclicRelevance.value) : payload.dueDate?.trim() || null, dateAt: taskType === "date" ? payload.dateAt! : null, startAt: taskType === "commitment" || taskType === "event" ? payload.startAt! : null, endAt: taskType === "event" ? payload.endAt! : null, durationMinutes: taskType === "commitment" ? payload.durationMinutes! : null,
     status: "todo", approvalRequired, size: payload.size ?? null, importance: payload.importance ?? null, urgency: payload.urgency ?? null,
     relevance: cyclicRelevance.value, cyclicPosition: taskType === "cyclic" ? await nextCyclicPosition(context.db, context.space.id) : 999999, cyclicReentryCount: 0,
   }).returning();
+  if (taskType === "cyclic") await getEffectiveCyclicQueueState(context.db, context.space.id);
   await context.db.insert(hierarchyAttachments).values({ id: crypto.randomUUID(), childType: "task", childId: task.id, parentType, parentId });
   await context.db.insert(itemRoleAssignments).values({ id: crypto.randomUUID(), itemType: "task", itemId: task.id, userId: context.user.id, role: "owner" }).onConflictDoNothing();
   for (const userId of assigneeIds) {

@@ -3,6 +3,7 @@ import { recordAuditEvent } from "../../../../db/audit";
 import { ensurePersonalContext } from "../../../../db/current-user";
 import { tasks } from "../../../../db/schema";
 import { TASK_SOFT_DELETE_RETENTION_DAYS, taskRetentionUntil } from "../../../../db/task-retention";
+import { getEffectiveCyclicQueueState } from "../../../../db/cyclic";
 
 export async function GET() {
   const context = await ensurePersonalContext();
@@ -36,8 +37,9 @@ export async function POST(request: Request) {
     if (!parent || parent.deletedAt) return Response.json({ error: "A tarefa-mãe não está disponível; restaure a hierarquia antes desta tarefa." }, { status: 409 });
   }
   const restoredAt = new Date().toISOString();
-  const [restored] = await context.db.update(tasks).set({ deletedAt: null, deletedStatus: null, status: task.deletedStatus ?? "todo", updatedAt: restoredAt }).where(and(eq(tasks.id, task.id), isNotNull(tasks.deletedAt))).returning({ id: tasks.id, title: tasks.title, status: tasks.status });
+  const [restored] = await context.db.update(tasks).set({ deletedAt: null, deletedStatus: null, status: task.deletedStatus ?? "todo", ...(task.taskType === "cyclic" ? { dueDate: null } : {}), updatedAt: restoredAt }).where(and(eq(tasks.id, task.id), isNotNull(tasks.deletedAt))).returning({ id: tasks.id, title: tasks.title, status: tasks.status });
   if (!restored) return Response.json({ error: "A tarefa já foi restaurada ou não está disponível." }, { status: 409 });
+  if (task.taskType === "cyclic") await getEffectiveCyclicQueueState(context.db, context.space.id);
   await recordAuditEvent(context.db, {
     personalSpaceId: task.organizationId ? null : context.space.id,
     organizationId: task.organizationId,

@@ -25,11 +25,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     update.title = title;
   }
   if (payload.description !== undefined) update.description = payload.description.trim();
-  if (payload.dueDate !== undefined) {
-    const dueDate = payload.dueDate?.trim() || null;
-    if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return Response.json({ error: "Use uma data válida." }, { status: 400 });
-    update.dueDate = dueDate;
-  }
   if (payload.pinnedForToday !== undefined) {
     if (typeof payload.pinnedForToday !== "boolean") return Response.json({ error: "Valor de prioridade inválido." }, { status: 400 });
     update.pinnedForToday = payload.pinnedForToday;
@@ -54,10 +49,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
   const [before] = await context.db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
   if (!before) return Response.json({ error: "Tarefa não encontrada." }, { status: 404 });
+  if (before.taskType === "cyclic" && payload.dueDate !== undefined) return Response.json({ error: "O prazo da Cíclica é automático." }, { status: 400 });
+  if (payload.dueDate !== undefined) {
+    const dueDate = payload.dueDate?.trim() || null;
+    if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return Response.json({ error: "Use uma data válida." }, { status: 400 });
+    update.dueDate = dueDate;
+  }
   if (payload.relevance !== undefined) {
     const cyclicRelevance = normalizeCyclicRelevance(before.taskType, payload.relevance);
     if (cyclicRelevance.error) return Response.json({ error: cyclicRelevance.error }, { status: 400 });
     update.relevance = cyclicRelevance.value;
+    if (before.taskType === "cyclic" && cyclicRelevance.value !== before.relevance) update.dueDate = null;
   }
   if (before.taskType === "cyclic" && (payload.status === "in_progress" || payload.status === "completed" || payload.approve)) {
     const queueState = await getEffectiveCyclicQueueState(context.db, before.personalSpaceId);
@@ -246,6 +248,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       summary: `editou ${changedFields} da tarefa “${task.title}”.`,
     });
   }
+  if (before.taskType === "cyclic") {
+    await getEffectiveCyclicQueueState(context.db, context.space.id);
+    [task] = await context.db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+  }
   const assignedTags = await context.db.select({ id: tags.id, name: tags.name }).from(taskTags).innerJoin(tags, eq(taskTags.tagId, tags.id)).where(eq(taskTags.taskId, id));
   const checklist = await context.db.select({ completed: checklistItems.completed }).from(checklistItems).where(eq(checklistItems.taskId, id));
   return Response.json({ task: { ...task, tags: assignedTags, checklistTotal: checklist.length, checklistCompleted: checklist.filter((item) => item.completed).length } });
@@ -258,7 +264,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   if (!(await canAccessTask(context.db, context.user.id, id, context.space.id, "delete"))) return Response.json({ error: "Tarefa não encontrada." }, { status: 404 });
   const [occurrence] = await context.db.select({ id: recurrenceOccurrences.id }).from(recurrenceOccurrences).where(eq(recurrenceOccurrences.taskId, id)).limit(1);
   if (occurrence) return Response.json({ error: "Ocorrências materializadas fazem parte do histórico da série e não podem ser excluídas. Arquive ou cancele a ocorrência." }, { status: 409 });
-  const [current] = await context.db.select({ id: tasks.id, title: tasks.title, organizationId: tasks.organizationId, status: tasks.status, deletedAt: tasks.deletedAt }).from(tasks).where(eq(tasks.id, id)).limit(1);
+  const [current] = await context.db.select({ id: tasks.id, title: tasks.title, taskType: tasks.taskType, organizationId: tasks.organizationId, status: tasks.status, deletedAt: tasks.deletedAt }).from(tasks).where(eq(tasks.id, id)).limit(1);
   if (!current) return Response.json({ error: "Tarefa não encontrada." }, { status: 404 });
   if (current.deletedAt) return Response.json({ error: "Esta tarefa já está na lixeira." }, { status: 409 });
   const children = await context.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.parentTaskId, id), isNull(tasks.deletedAt))).limit(1);
@@ -266,6 +272,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   const deletedAt = new Date().toISOString();
   const [task] = await context.db.update(tasks).set({ deletedAt, deletedStatus: current.status, status: "archived", updatedAt: deletedAt }).where(and(eq(tasks.id, id), isNull(tasks.deletedAt))).returning({ id: tasks.id, title: tasks.title, organizationId: tasks.organizationId, deletedAt: tasks.deletedAt });
   if (!task) return Response.json({ error: "Tarefa não encontrada." }, { status: 404 });
+  if (current.taskType === "cyclic") await getEffectiveCyclicQueueState(context.db, context.space.id);
   await recordAuditEvent(context.db, {
     personalSpaceId: task.organizationId ? null : context.space.id, organizationId: task.organizationId,
     actorUserId: context.user.id,

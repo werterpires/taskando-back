@@ -6,7 +6,7 @@ import { hierarchyAttachments, itemRoleAssignments, projects, tasks } from "../.
 import { commitmentTimeError, dateMarkerError, eventTimeError, taskTypeError } from "../../../../../db/task-types";
 import { taskApprovalRequired } from "../../../../../db/approval";
 import { createRecurrenceSeries, firstMaterializedTask, materializeSeries, parseRecurrenceDefinition, recurrenceTaskTypes } from "../../../../../db/recurrence";
-import { nextCyclicPosition, normalizeCyclicRelevance } from "../../../../../db/cyclic";
+import { dueDateForNewCyclicTask, getEffectiveCyclicQueueState, nextCyclicPosition, normalizeCyclicRelevance } from "../../../../../db/cyclic";
 
 const sizes = ["xs", "s", "m", "l", "xl"] as const;
 const priorities = ["low", "medium", "high"] as const;
@@ -16,6 +16,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
   const { id } = await params;
   if (!await canAccessProject(context.db, context.user.id, id, context.space.id, "view")) return Response.json({ error: "Projeto não encontrado." }, { status: 404 });
+  await getEffectiveCyclicQueueState(context.db, context.space.id);
   const attachments = await context.db.select({ childId: hierarchyAttachments.childId }).from(hierarchyAttachments).where(and(eq(hierarchyAttachments.parentType, "project"), eq(hierarchyAttachments.parentId, id)));
   const ids = attachments.map((item) => item.childId);
   if (!ids.length) return Response.json({ tasks: [] });
@@ -42,6 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const approvalRequired = taskApprovalRequired(taskType, payload.approvalRequired);
   const cyclicRelevance = normalizeCyclicRelevance(taskType, payload.relevance);
   if (cyclicRelevance.error) return Response.json({ error: cyclicRelevance.error }, { status: 400 });
+  if (taskType === "cyclic" && payload.dueDate !== undefined && payload.dueDate !== null) return Response.json({ error: "O prazo da Cíclica é automático." }, { status: 400 });
   const typeError = taskTypeError(taskType, "project"); if (typeError) return Response.json({ error: typeError }, { status: 400 });
   const timeError = commitmentTimeError(taskType, payload.startAt, payload.durationMinutes); if (timeError) return Response.json({ error: timeError }, { status: 400 });
   const eventError = eventTimeError(taskType, payload.startAt, payload.endAt); if (eventError) return Response.json({ error: eventError }, { status: 400 });
@@ -56,7 +58,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!firstTask) return Response.json({ error: "A série foi criada, mas ainda não há uma ocorrência dentro da janela atual." }, { status: 400 });
     return Response.json({ task: { ...firstTask, parentName: null, tags: [], checklistTotal: 0, checklistCompleted: 0 }, series }, { status: 201 });
   }
-  const [task] = await context.db.insert(tasks).values({ id: crypto.randomUUID(), personalSpaceId: context.space.id, organizationId: project.organizationId, authorUserId: context.user.id, ownerUserId: context.user.id, title, description: payload.description?.trim() ?? "", taskType: taskType as typeof tasks.$inferInsert.taskType, dueDate, dateAt: taskType === "date" ? payload.dateAt! : null, startAt: taskType === "commitment" || taskType === "event" ? payload.startAt! : null, endAt: taskType === "event" ? payload.endAt! : null, durationMinutes: taskType === "commitment" ? payload.durationMinutes! : null, status: "todo", approvalRequired, size: payload.size ?? null, importance: payload.importance ?? null, urgency: payload.urgency ?? null, relevance: cyclicRelevance.value, cyclicPosition: taskType === "cyclic" ? await nextCyclicPosition(context.db, context.space.id) : 999999, cyclicReentryCount: 0 }).returning();
+  const [task] = await context.db.insert(tasks).values({ id: crypto.randomUUID(), personalSpaceId: context.space.id, organizationId: project.organizationId, authorUserId: context.user.id, ownerUserId: context.user.id, title, description: payload.description?.trim() ?? "", taskType: taskType as typeof tasks.$inferInsert.taskType, dueDate: taskType === "cyclic" ? await dueDateForNewCyclicTask(context.db, context.space.id, cyclicRelevance.value) : dueDate, dateAt: taskType === "date" ? payload.dateAt! : null, startAt: taskType === "commitment" || taskType === "event" ? payload.startAt! : null, endAt: taskType === "event" ? payload.endAt! : null, durationMinutes: taskType === "commitment" ? payload.durationMinutes! : null, status: "todo", approvalRequired, size: payload.size ?? null, importance: payload.importance ?? null, urgency: payload.urgency ?? null, relevance: cyclicRelevance.value, cyclicPosition: taskType === "cyclic" ? await nextCyclicPosition(context.db, context.space.id) : 999999, cyclicReentryCount: 0 }).returning();
+  if (taskType === "cyclic") await getEffectiveCyclicQueueState(context.db, context.space.id);
   await context.db.insert(hierarchyAttachments).values({ id: crypto.randomUUID(), childType: "task", childId: task.id, parentType: "project", parentId: id });
   await context.db.insert(itemRoleAssignments).values({ id: crypto.randomUUID(), itemType: "task", itemId: task.id, userId: context.user.id, role: "owner" });
   await recordAuditEvent(context.db, { organizationId: project.organizationId ?? undefined, personalSpaceId: project.organizationId ? undefined : context.space.id, actorUserId: context.user.id, actorName: context.user.displayName, action: "task_created", subjectType: "task", subjectId: task.id, summary: `criou a tarefa “${task.title}” no projeto “${project.title}”.` });

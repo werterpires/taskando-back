@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
-import { cyclicQueueOverrides, cyclicQueueStates, tasks } from "./schema";
+import { cyclicQueueOverrides, cyclicQueueStates, notificationPreferences, personalSpaces, tasks } from "./schema";
 import { resolveCyclicReleasedLevel } from "./cyclic-gate";
+import { defaultTimeZone, nextLocalDate } from "./time-zone";
 
 type Database = NonNullable<Awaited<ReturnType<typeof import("./current-user").ensurePersonalContext>>>["db"];
 type CyclicState = typeof cyclicQueueStates.$inferSelect;
@@ -54,9 +55,38 @@ function withAvailableReleasedLevel(state: CyclicState, rows: CyclicRow[]) {
   return { ...state, releasedLevel: resolveCyclicReleasedLevel(state.releasedLevel, activeRows(rows).map((row) => row.relevance ?? cyclicDefaultRelevance)) };
 }
 
-export async function getEffectiveCyclicQueueState(db: Database, personalSpaceId: string) {
+export function cyclicDueDate(released: boolean, current: string | null, nextDay: string, newRound = false) {
+  return released ? (newRound ? nextDay : current ?? nextDay) : null;
+}
+
+async function cyclicNextDay(db: Database, personalSpaceId: string, now = new Date()) {
+  const [space] = await db.select({ ownerUserId: personalSpaces.ownerUserId }).from(personalSpaces).where(eq(personalSpaces.id, personalSpaceId)).limit(1);
+  const [preferences] = space ? await db.select({ timeZone: notificationPreferences.timeZone }).from(notificationPreferences).where(eq(notificationPreferences.userId, space.ownerUserId)).limit(1) : [];
+  return nextLocalDate(now, preferences?.timeZone ?? defaultTimeZone)!;
+}
+
+async function synchronizedQueue(db: Database, personalSpaceId: string) {
+  const [storedState, rows] = await Promise.all([getCyclicQueueState(db, personalSpaceId), queueRows(db, personalSpaceId)]);
+  const state = withAvailableReleasedLevel(storedState, rows);
+  if (!rows.length) return { state, rows };
+  const nextDay = await cyclicNextDay(db, personalSpaceId);
+  const updates = rows.flatMap((row) => {
+    const dueDate = cyclicDueDate(!["cancelled", "archived"].includes(row.status) && (row.relevance ?? cyclicDefaultRelevance) === state.releasedLevel, row.dueDate, nextDay);
+    return dueDate === row.dueDate ? [] : [{ id: row.id, dueDate }];
+  });
+  if (updates.length) await db.batch(updates.map(({ id, dueDate }) => db.update(tasks).set({ dueDate }).where(eq(tasks.id, id))) as Parameters<Database["batch"]>[0]);
+  const dueById = new Map(updates.map((item) => [item.id, item.dueDate]));
+  return { state, rows: rows.map((row) => dueById.has(row.id) ? { ...row, dueDate: dueById.get(row.id)! } : row) };
+}
+
+export async function dueDateForNewCyclicTask(db: Database, personalSpaceId: string, relevance: number | null) {
   const [state, rows] = await Promise.all([getCyclicQueueState(db, personalSpaceId), queueRows(db, personalSpaceId)]);
-  return withAvailableReleasedLevel(state, rows);
+  const level = resolveCyclicReleasedLevel(state.releasedLevel, [...activeRows(rows).map((row) => row.relevance ?? cyclicDefaultRelevance), relevance ?? cyclicDefaultRelevance]);
+  return (relevance ?? cyclicDefaultRelevance) === level ? cyclicNextDay(db, personalSpaceId) : null;
+}
+
+export async function getEffectiveCyclicQueueState(db: Database, personalSpaceId: string) {
+  return (await synchronizedQueue(db, personalSpaceId)).state;
 }
 
 /** Persistent overrides are anchors; every other task fills the remaining slots in algorithmic order. */
@@ -85,8 +115,7 @@ function explainPosition(row: CyclicRow, position: number, state: CyclicState, o
 }
 
 export async function listCyclicQueue(db: Database, personalSpaceId: string) {
-  const [storedState, rows, overrides] = await Promise.all([getCyclicQueueState(db, personalSpaceId), queueRows(db, personalSpaceId), queueOverrides(db, personalSpaceId)]);
-  const state = withAvailableReleasedLevel(storedState, rows);
+  const [{ state, rows }, overrides] = await Promise.all([synchronizedQueue(db, personalSpaceId), queueOverrides(db, personalSpaceId)]);
   const active = applyPersistentAnchors(activeRows(rows), overrides);
   const overrideByTask = new Map(overrides.map((override) => [override.taskId, override]));
   const progress = { 5: state.level5Progress, 4: state.level4Progress, 3: state.level3Progress, 2: state.level2Progress };
@@ -146,7 +175,7 @@ export async function adjustCyclicQueue(db: Database, input: { personalSpaceId: 
   const now = new Date().toISOString();
   const claimed = await claimRevision(db, state, now);
   if (!claimed) return { error: "A fila mudou enquanto você a ajustava. Recarregue a fila e tente novamente.", conflict: true as const };
-  const statements: Parameters<Database["batch"]>[0] = ordered.map((row, index) => db.update(tasks).set({ cyclicPosition: index + 1, ...(row.id === input.taskId && input.mode === "relevance" ? { relevance: normalized.value } : {}), updatedAt: now }).where(eq(tasks.id, row.id)));
+  const statements: Parameters<Database["batch"]>[0] = ordered.map((row, index) => db.update(tasks).set({ cyclicPosition: index + 1, ...(row.id === input.taskId && input.mode === "relevance" ? { relevance: normalized.value, dueDate: normalized.value === row.relevance ? row.dueDate : null } : {}), updatedAt: now }).where(eq(tasks.id, row.id)));
   statements.push(db.delete(cyclicQueueOverrides).where(eq(cyclicQueueOverrides.taskId, input.taskId)));
   if (input.mode === "until_completion" || input.mode === "persistent") statements.push(db.insert(cyclicQueueOverrides).values({ id: crypto.randomUUID(), taskId: input.taskId, personalSpaceId: input.personalSpaceId, mode: input.mode, position: input.position, createdByUserId: input.userId, updatedAt: now }));
   await db.batch(statements);
@@ -169,10 +198,11 @@ export async function completeCyclicTask(db: Database, task: typeof tasks.$infer
   const now = new Date().toISOString();
   const claimed = await claimRevision(db, state, now);
   if (!claimed) return { error: "A fila mudou enquanto a conclusão era registrada. Recarregue a fila e tente novamente.", conflict: true as const };
+  const nextDay = await cyclicNextDay(db, task.personalSpaceId, new Date(now));
   const statements: Parameters<Database["batch"]>[0] = ordered.map((row, index) => db.update(tasks).set(
     row.id === task.id
-      ? { status: "todo", completedAt: null, cyclicPosition: index + 1, cyclicReentryCount: (task.cyclicReentryCount ?? 0) + 1, updatedAt: now }
-      : { cyclicPosition: index + 1, updatedAt: now },
+      ? { status: "todo", completedAt: null, dueDate: cyclicDueDate((row.relevance ?? cyclicDefaultRelevance) === gate.releasedLevel, row.dueDate, nextDay, true), cyclicPosition: index + 1, cyclicReentryCount: (task.cyclicReentryCount ?? 0) + 1, updatedAt: now }
+      : { dueDate: cyclicDueDate((row.relevance ?? cyclicDefaultRelevance) === gate.releasedLevel, row.dueDate, nextDay, (row.relevance ?? cyclicDefaultRelevance) !== state.releasedLevel), cyclicPosition: index + 1, updatedAt: now },
   ).where(eq(tasks.id, row.id)));
   if (override?.mode === "until_completion") statements.push(db.delete(cyclicQueueOverrides).where(eq(cyclicQueueOverrides.taskId, task.id)));
   await db.update(cyclicQueueStates).set({ releasedLevel: gate.releasedLevel, ...gate.progress, updatedAt: now }).where(eq(cyclicQueueStates.id, state.id));

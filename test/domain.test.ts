@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isDateMarkerReleased, isEventReleased, taskTypeError } from '../src/db/task-types';
 import { resolveCyclicReleasedLevel } from '../src/db/cyclic-gate';
+import { cyclicDueDate } from '../src/db/cyclic';
+import { nextLocalDate } from '../src/db/time-zone';
 import { validateAttachment } from '../src/db/hierarchy';
 
 test('hierarquia preserva pais obrigatórios e anexação livre para cima', () => {
@@ -29,4 +31,18 @@ test('fila cíclica progride por relevância', () => {
   assert.equal(resolveCyclicReleasedLevel(5, [5, 3]), 5);
   assert.equal(resolveCyclicReleasedLevel(4, [5, 3]), 3);
   assert.equal(resolveCyclicReleasedLevel(2, [5, 3]), 5);
+});
+
+test('prazo automático respeita liberação, backfill e nova rodada', () => {
+  assert.equal(cyclicDueDate(true, null, '2026-09-15'), '2026-09-15');
+  assert.equal(cyclicDueDate(false, '2026-09-14', '2026-09-15'), null);
+  assert.equal(cyclicDueDate(true, '2026-09-14', '2026-09-15'), '2026-09-14');
+  assert.equal(cyclicDueDate(true, '2026-09-14', '2026-09-15', true), '2026-09-15');
+});
+
+test('próximo dia local usa fuso da conta e avança no calendário', () => {
+  const instant = new Date('2026-12-31T23:30:00.000Z');
+  assert.equal(nextLocalDate(instant, 'America/Sao_Paulo'), '2027-01-01');
+  assert.equal(nextLocalDate(instant, 'Pacific/Kiritimati'), '2027-01-02');
+  assert.equal(nextLocalDate(instant, 'invalid/time-zone'), '2027-01-01');
 });

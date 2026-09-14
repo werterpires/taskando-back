@@ -6,7 +6,7 @@ import { departments, hierarchyAttachments, itemRoleAssignments, organizationMem
 import { commitmentTimeError, dateMarkerError, eventTimeError, taskTypeError } from "../../../../../db/task-types";
 import { taskApprovalRequired } from "../../../../../db/approval";
 import { createRecurrenceSeries, firstMaterializedTask, materializeSeries, parseRecurrenceDefinition, recurrenceTaskTypes } from "../../../../../db/recurrence";
-import { nextCyclicPosition, normalizeCyclicRelevance } from "../../../../../db/cyclic";
+import { dueDateForNewCyclicTask, getEffectiveCyclicQueueState, nextCyclicPosition, normalizeCyclicRelevance } from "../../../../../db/cyclic";
 
 async function orgContext(id: string) {
   const context = await ensurePersonalContext(); if (!context) return { context: null, organization: null, canView: false, canCreate: false };
@@ -18,6 +18,7 @@ async function orgContext(id: string) {
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; const { context, organization, canView } = await orgContext(id);
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 }); if (!organization || !canView) return Response.json({ error: "Sem acesso à organização." }, { status: 403 });
+  await getEffectiveCyclicQueueState(context.db, context.space.id);
   const rows = await context.db.select().from(tasks).where(and(eq(tasks.organizationId, id), isNull(tasks.parentTaskId), isNull(tasks.deletedAt))).orderBy(asc(tasks.createdAt));
   const assignments = await context.db.select({ taskId: taskAssignees.taskId, userId: users.id, displayName: users.displayName }).from(taskAssignees).innerJoin(users, eq(taskAssignees.userId, users.id));
   const attachments = await context.db.select().from(hierarchyAttachments);
@@ -53,6 +54,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const approvalRequired = taskApprovalRequired(taskType, payload.approvalRequired);
   const cyclicRelevance = normalizeCyclicRelevance(taskType, payload.relevance);
   if (cyclicRelevance.error) return Response.json({ error: cyclicRelevance.error }, { status: 400 });
+  if (taskType === "cyclic" && payload.dueDate !== undefined && payload.dueDate !== null) return Response.json({ error: "O prazo da Cíclica é automático." }, { status: 400 });
   if (recurrenceTaskTypes.includes(taskType as typeof recurrenceTaskTypes[number])) {
     const parsed = parseRecurrenceDefinition(payload.recurrenceDefinition, taskType);
     if (parsed.error || !parsed.definition) return Response.json({ error: parsed.error ?? "Definição de recorrência inválida." }, { status: 400 });
@@ -63,7 +65,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!firstTask) return Response.json({ error: "A série foi criada, mas ainda não há uma ocorrência dentro da janela atual." }, { status: 400 });
     return Response.json({ task: firstTask, series }, { status: 201 });
   }
-  const [task] = await context.db.insert(tasks).values({ id: crypto.randomUUID(), personalSpaceId: context.space.id, authorUserId: context.user.id, ownerUserId: context.user.id, organizationId: id, title, description: payload.description?.trim() ?? "", taskType: taskType as typeof tasks.$inferInsert.taskType, dueDate: payload.dueDate?.trim() || null, dateAt: taskType === "date" ? payload.dateAt! : null, startAt: taskType === "commitment" || taskType === "event" ? payload.startAt! : null, endAt: taskType === "event" ? payload.endAt! : null, durationMinutes: taskType === "commitment" ? payload.durationMinutes! : null, status: "todo", approvalRequired, size: payload.size ?? null, importance: payload.importance ?? null, urgency: payload.urgency ?? null, relevance: cyclicRelevance.value, cyclicPosition: taskType === "cyclic" ? await nextCyclicPosition(context.db, context.space.id) : 999999, cyclicReentryCount: 0 }).returning();
+  const [task] = await context.db.insert(tasks).values({ id: crypto.randomUUID(), personalSpaceId: context.space.id, authorUserId: context.user.id, ownerUserId: context.user.id, organizationId: id, title, description: payload.description?.trim() ?? "", taskType: taskType as typeof tasks.$inferInsert.taskType, dueDate: taskType === "cyclic" ? await dueDateForNewCyclicTask(context.db, context.space.id, cyclicRelevance.value) : payload.dueDate?.trim() || null, dateAt: taskType === "date" ? payload.dateAt! : null, startAt: taskType === "commitment" || taskType === "event" ? payload.startAt! : null, endAt: taskType === "event" ? payload.endAt! : null, durationMinutes: taskType === "commitment" ? payload.durationMinutes! : null, status: "todo", approvalRequired, size: payload.size ?? null, importance: payload.importance ?? null, urgency: payload.urgency ?? null, relevance: cyclicRelevance.value, cyclicPosition: taskType === "cyclic" ? await nextCyclicPosition(context.db, context.space.id) : 999999, cyclicReentryCount: 0 }).returning();
+  if (taskType === "cyclic") await getEffectiveCyclicQueueState(context.db, context.space.id);
   await context.db.insert(hierarchyAttachments).values({ id: crypto.randomUUID(), childType: "task", childId: task.id, parentType, parentId });
   await context.db.insert(itemRoleAssignments).values({ id: crypto.randomUUID(), itemType: "task", itemId: task.id, userId: context.user.id, role: "owner" });
   for (const userId of assigneeIds) { await context.db.insert(taskAssignees).values({ taskId: task.id, userId }).onConflictDoNothing(); if (userId !== context.user.id) { await context.db.insert(itemRoleAssignments).values({ id: crypto.randomUUID(), itemType: "task", itemId: task.id, userId, role: "executor" }).onConflictDoNothing(); await createNotification(context.db, { recipientUserId: userId, actorUserId: context.user.id, taskId: task.id, type: "assignment", eventKey: `assignment:${task.id}:${userId}`, summary: `${context.user.displayName} atribuiu a tarefa “${task.title}” a você.` }); } }
