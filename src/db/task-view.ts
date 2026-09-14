@@ -1,27 +1,28 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { ensurePersonalContext } from "./current-user";
-import { getCyclicQueueState } from "./cyclic";
+import { getEffectiveCyclicQueueState } from "./cyclic";
 import { dependencyDisplayForTasks } from "./dependency-release";
 import { parentNamesByChild } from "./parent-labels";
 import { checklistItems, hierarchyAttachments, recurrenceOccurrences, recurrenceSeries, tags, taskAssignees, taskTags, tasks, users } from "./schema";
+import { selectInBatches } from "./batched-query";
 
 type PersonalContext = NonNullable<Awaited<ReturnType<typeof ensurePersonalContext>>>;
 type TaskRow = typeof tasks.$inferSelect;
 
 /** Hidrata somente a página visível para evitar varreduras globais de tags, checklist e hierarquia. */
-export async function hydrateTaskRows(context: PersonalContext, rows: TaskRow[]) {
+export async function hydrateTaskRows(context: PersonalContext, rows: TaskRow[], cyclicStateOverride?: Awaited<ReturnType<typeof getEffectiveCyclicQueueState>>) {
   if (!rows.length) return [];
   const taskIds = rows.map((task) => task.id);
   const ownerIds = [...new Set(rows.map((task) => task.ownerUserId).filter((id): id is string => typeof id === "string"))];
   const [attachments, recurrenceRows, dependencyStates, assignmentRows, ownerRows, taggedRows, checklistRows, cyclicState] = await Promise.all([
-    context.db.select().from(hierarchyAttachments).where(and(eq(hierarchyAttachments.childType, "task"), inArray(hierarchyAttachments.childId, taskIds))),
-    context.db.select({ taskId: recurrenceOccurrences.taskId, occurrenceId: recurrenceOccurrences.id, seriesId: recurrenceOccurrences.seriesId, seriesActive: recurrenceSeries.active, definitionJson: recurrenceSeries.definitionJson }).from(recurrenceOccurrences).innerJoin(recurrenceSeries, eq(recurrenceOccurrences.seriesId, recurrenceSeries.id)).where(inArray(recurrenceOccurrences.taskId, taskIds)),
+    selectInBatches(taskIds, (ids) => context.db.select().from(hierarchyAttachments).where(and(eq(hierarchyAttachments.childType, "task"), inArray(hierarchyAttachments.childId, ids)))),
+    selectInBatches(taskIds, (ids) => context.db.select({ taskId: recurrenceOccurrences.taskId, occurrenceId: recurrenceOccurrences.id, seriesId: recurrenceOccurrences.seriesId, seriesActive: recurrenceSeries.active, definitionJson: recurrenceSeries.definitionJson }).from(recurrenceOccurrences).innerJoin(recurrenceSeries, eq(recurrenceOccurrences.seriesId, recurrenceSeries.id)).where(inArray(recurrenceOccurrences.taskId, ids))),
     dependencyDisplayForTasks(context, taskIds),
-    context.db.select({ taskId: taskAssignees.taskId, userId: users.id, displayName: users.displayName }).from(taskAssignees).innerJoin(users, eq(taskAssignees.userId, users.id)).where(inArray(taskAssignees.taskId, taskIds)),
-    ownerIds.length ? context.db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.id, ownerIds)) : Promise.resolve([]),
-    context.db.select({ taskId: taskTags.taskId, id: tags.id, name: tags.name }).from(taskTags).innerJoin(tags, eq(taskTags.tagId, tags.id)).where(inArray(taskTags.taskId, taskIds)),
-    context.db.select({ taskId: checklistItems.taskId, completed: checklistItems.completed }).from(checklistItems).where(inArray(checklistItems.taskId, taskIds)),
-    getCyclicQueueState(context.db, context.space.id),
+    selectInBatches(taskIds, (ids) => context.db.select({ taskId: taskAssignees.taskId, userId: users.id, displayName: users.displayName }).from(taskAssignees).innerJoin(users, eq(taskAssignees.userId, users.id)).where(inArray(taskAssignees.taskId, ids))),
+    selectInBatches(ownerIds, (ids) => context.db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.id, ids))),
+    selectInBatches(taskIds, (ids) => context.db.select({ taskId: taskTags.taskId, id: tags.id, name: tags.name }).from(taskTags).innerJoin(tags, eq(taskTags.tagId, tags.id)).where(and(inArray(taskTags.taskId, ids), eq(tags.personalSpaceId, context.space.id)))),
+    selectInBatches(taskIds, (ids) => context.db.select({ taskId: checklistItems.taskId, completed: checklistItems.completed }).from(checklistItems).innerJoin(tasks, eq(checklistItems.taskId, tasks.id)).where(and(inArray(checklistItems.taskId, ids), eq(tasks.personalSpaceId, context.space.id)))),
+    cyclicStateOverride ?? getEffectiveCyclicQueueState(context.db, context.space.id),
   ]);
   const parentNames = await parentNamesByChild(context.db, attachments);
   const recurrenceByTask = new Map(recurrenceRows.map((item) => [item.taskId, item]));

@@ -27,6 +27,12 @@ Em produção, configure `SSL_CA_PATH` com a CA do PostgreSQL. Para provedores q
 
 O frontend encaminha `/api` para esta API, que escuta em `127.0.0.1:3000`. Não há cadastro público: o usuário inicial vem da seed e qualquer usuário autenticado pode criar outra conta, informando a senha inicial. Cada usuário pode trocar a própria senha na tela de configurações. As senhas são armazenadas como hashes `scrypt` com salt individual. As variáveis OAuth do Google são opcionais e ficam reservadas para a retomada futura desse provedor.
 
+## Cache de leituras
+
+O backend mantém um cache privado, em memória por processo, para `GET /api/tasks`, `/api/priority-matrix`, `/api/context`, `/api/task-containers/:parentType/:parentId` e `/api/work-progress/:parentType/:parentId`. A chave inclui o usuário autenticado e a URL com parâmetros de consulta normalizados. Os padrões são `TASKANDO_CACHE_ENABLED=true`, `TASKANDO_CACHE_TTL_SECONDS=600` e `TASKANDO_CACHE_MAX_ENTRIES=128` (LRU). Defina `TASKANDO_CACHE_ENABLED=false` para desligá-lo.
+
+O cabeçalho `X-Taskando-Cache` indica `MISS`, `HIT` ou `BYPASS`; `Cache-Control: no-store` continua impedindo cache no cliente. Respostas diferentes de HTTP 200 não são armazenadas. Mutações HTTP ou MCP bem-sucedidas que afetam tarefas, hierarquia, permissões ou progresso invalidam as entradas; operações de leitura e alterações sem efeito nessas projeções não invalidam. A invalidação é por processo e, portanto, instâncias diferentes não compartilham entradas nem sinais de invalidação. Para observar dados imediatamente após mutações feitas fora desta API ou em outra instância, desabilite o cache ou use uma camada de invalidação compartilhada.
+
 ## Migração dos dados do Sites/D1
 
 O pacote recebido inclui schema e migrations, mas não inclui os dados vivos. Exporte o D1 com Wrangler (arquivo SQL) ou forneça um banco SQLite e execute, depois das migrations PostgreSQL:

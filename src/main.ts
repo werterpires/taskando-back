@@ -15,7 +15,7 @@ class SafeErrors implements ExceptionFilter {
 }
 export async function createApp() {
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
-  app.enableCors({ origin: appOrigin(), credentials: true });
+  app.enableCors({ origin: appOrigin(), credentials: true, exposedHeaders: ['X-Taskando-Cache'] });
   app.use(helmet()); app.use(cookieParser());
   app.use((req: Request, res: Response, next: NextFunction) => {
     res.setHeader('Cache-Control', 'no-store');

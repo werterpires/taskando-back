@@ -74,6 +74,13 @@ export async function canAccessTask(db: Database, userId: string, taskId: string
   }
   return task.organizationId === null && task.personalSpaceId === spaceId;
 }
+
+/** The common grants can be decided from the already-selected task row. */
+export function directlyViewableTask(task: Pick<typeof tasks.$inferSelect, "id" | "ownerUserId" | "authorUserId" | "personalSpaceId" | "organizationId" | "deletedAt">, userId: string, spaceId: string, assignedTaskIds: ReadonlySet<string> = new Set(), memberOrganizationIds: ReadonlySet<string> = new Set()) {
+  return !task.deletedAt && (task.ownerUserId === userId || task.authorUserId === userId ||
+    (task.organizationId === null && task.personalSpaceId === spaceId) ||
+    (task.organizationId !== null && (assignedTaskIds.has(task.id) || memberOrganizationIds.has(task.organizationId))));
+}
 export async function canAccessProject(db: Database, userId: string, projectId: string, spaceId: string, capability: Capability = "view") {
   const [project] = await db.select({ ownerUserId: projects.ownerUserId, authorUserId: projects.authorUserId, personalSpaceId: projects.personalSpaceId, organizationId: projects.organizationId }).from(projects).where(eq(projects.id, projectId)).limit(1);
   if (!project) return false;

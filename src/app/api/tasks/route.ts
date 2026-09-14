@@ -1,14 +1,11 @@
 import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import { recordAuditEvent } from "../../../db/audit";
-import { canAccessTask } from "../../../db/authorization";
+import { canAccessTask, directlyViewableTask } from "../../../db/authorization";
 import { ensurePersonalContext } from "../../../db/current-user";
-import { parentNamesByChild } from "../../../db/parent-labels";
-import { checklistItems, departments, hierarchyAttachments, recurrenceOccurrences, recurrenceSeries, tags, taskAssignees, taskTags, tasks, teams, users } from "../../../db/schema";
-import { commitmentTimeError, dateMarkerError, eventTimeError, taskTypeError } from "../../../db/task-types";
-import { taskApprovalRequired } from "../../../db/approval";
-import { dependencyDisplayForTasks, refreshDependencyReleases } from "../../../db/dependency-release";
+import { organizationMembers, tags, taskAssignees, taskTags, tasks } from "../../../db/schema";
+import { refreshDependencyReleases } from "../../../db/dependency-release";
 import { createTask } from "./shared";
 import { getEffectiveCyclicQueueState } from "../../../db/cyclic";
+import { hydrateTaskRows } from "../../../db/task-view";
 import { selectInBatches } from "../../../db/batched-query";
 
 export async function GET() {
@@ -80,38 +77,19 @@ export async function GET() {
     )
   )`;
   const candidates = await context.db.select().from(tasks).where(and(isNull(tasks.parentTaskId), isNull(tasks.deletedAt), recurrenceVisibility, cyclicVisibility, dependencyVisibility)).orderBy(desc(tasks.createdAt));
-  const visible = await Promise.all(candidates.map(async (task) => await canAccessTask(context.db, context.user.id, task.id, context.space.id, "view") ? task : null));
+  const organizational = candidates.filter((task) => task.organizationId !== null && !directlyViewableTask(task, context.user.id, context.space.id));
+  const organizationIds = [...new Set(organizational.map((task) => task.organizationId).filter((id): id is string => id !== null))];
+  const [assignments, memberships] = await Promise.all([
+    selectInBatches(organizational.map((task) => task.id), (ids) => context.db.select({ taskId: taskAssignees.taskId }).from(taskAssignees).where(and(inArray(taskAssignees.taskId, ids), eq(taskAssignees.userId, context.user.id)))),
+    selectInBatches(organizationIds, (ids) => context.db.select({ organizationId: organizationMembers.organizationId }).from(organizationMembers).where(and(inArray(organizationMembers.organizationId, ids), eq(organizationMembers.userId, context.user.id), eq(organizationMembers.status, "active")))),
+  ]);
+  const assignedTaskIds = new Set(assignments.map((row) => row.taskId));
+  const memberOrganizationIds = new Set(memberships.map((row) => row.organizationId));
+  const visible = await Promise.all(candidates.map(async (task) =>
+    directlyViewableTask(task, context.user.id, context.space.id, assignedTaskIds, memberOrganizationIds) ||
+    await canAccessTask(context.db, context.user.id, task.id, context.space.id, "view") ? task : null));
   const rows = visible.filter((task): task is typeof candidates[number] => task !== null);
-  const attachments = await context.db.select().from(hierarchyAttachments);
-  const parentNames = await parentNamesByChild(context.db, attachments);
-  const taskIds = rows.map((task) => task.id);
-  const recurrenceRows = await selectInBatches(taskIds, (ids) => context.db.select({ taskId: recurrenceOccurrences.taskId, occurrenceId: recurrenceOccurrences.id, seriesId: recurrenceOccurrences.seriesId, seriesActive: recurrenceSeries.active, definitionJson: recurrenceSeries.definitionJson }).from(recurrenceOccurrences).innerJoin(recurrenceSeries, eq(recurrenceOccurrences.seriesId, recurrenceSeries.id)).where(inArray(recurrenceOccurrences.taskId, ids)));
-  const recurrenceByTask = new Map(recurrenceRows.map((item) => [item.taskId, item]));
-  const dependencyStates = await dependencyDisplayForTasks(context, taskIds);
-  const assignmentRows = await selectInBatches(taskIds, (ids) => context.db.select({ taskId: taskAssignees.taskId, userId: users.id, displayName: users.displayName }).from(taskAssignees).innerJoin(users, eq(taskAssignees.userId, users.id)).where(inArray(taskAssignees.taskId, ids)));
-  const assigneesByTask = new Map<string, { userId: string; displayName: string }[]>();
-  for (const assignment of assignmentRows) assigneesByTask.set(assignment.taskId, [...(assigneesByTask.get(assignment.taskId) ?? []), { userId: assignment.userId, displayName: assignment.displayName }]);
-  const ownerIds = [...new Set(rows.map((task) => task.ownerUserId).filter((id): id is string => typeof id === "string"))];
-  const ownerRows = await selectInBatches(ownerIds, (ids) => context.db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.id, ids)));
-  const ownerNames = new Map(ownerRows.map((user) => [user.id, user.displayName]));
-  const taggedRows = await context.db
-    .select({ taskId: taskTags.taskId, id: tags.id, name: tags.name })
-    .from(taskTags)
-    .innerJoin(tags, eq(taskTags.tagId, tags.id))
-    .where(eq(tags.personalSpaceId, context.space.id));
-  const tagsByTask = new Map<string, { id: string; name: string }[]>();
-  for (const tag of taggedRows) tagsByTask.set(tag.taskId, [...(tagsByTask.get(tag.taskId) ?? []), { id: tag.id, name: tag.name }]);
-  const checklistRows = await context.db
-    .select({ taskId: checklistItems.taskId, completed: checklistItems.completed })
-    .from(checklistItems)
-    .innerJoin(tasks, eq(checklistItems.taskId, tasks.id))
-    .where(eq(tasks.personalSpaceId, context.space.id));
-  const checklistByTask = new Map<string, { total: number; completed: number }>();
-  for (const item of checklistRows) {
-    const current = checklistByTask.get(item.taskId) ?? { total: 0, completed: 0 };
-    checklistByTask.set(item.taskId, { total: current.total + 1, completed: current.completed + (item.completed ? 1 : 0) });
-  }
-  return Response.json({ tasks: rows.map((task) => { const attachment = attachments.find((item) => item.childType === "task" && item.childId === task.id); const assignees = assigneesByTask.get(task.id) ?? []; const dependency = dependencyStates.get(task.id) ?? { state: "independent" as const, blockers: [] }; const recurrence = recurrenceByTask.get(task.id); let recurrenceTimeZone: string | null = null; if (recurrence) { try { recurrenceTimeZone = (JSON.parse(recurrence.definitionJson) as { timeZone?: string }).timeZone ?? null; } catch { recurrenceTimeZone = null; } } return { ...task, parentType: attachment?.parentType ?? null, parentId: attachment?.parentId ?? null, parentName: parentNames.get(`task:${task.id}`) ?? null, ownerName: ownerNames.get(task.ownerUserId ?? "") ?? null, assignees, dependencyState: dependency.state, dependencyBlockers: dependency.blockers, responsibleAvailability: assignees.length ? "assigned" as const : "unassigned" as const, cyclicReleasedLevel: cyclicState.releasedLevel, cyclicReleased: task.taskType === "cyclic" ? (task.relevance ?? 3) === cyclicState.releasedLevel : undefined, recurrenceOccurrenceId: recurrence?.occurrenceId ?? null, recurrenceSeriesId: recurrence?.seriesId ?? null, recurrenceSeriesActive: recurrence?.seriesActive ?? null, recurrenceTimeZone, tags: tagsByTask.get(task.id) ?? [], checklistTotal: checklistByTask.get(task.id)?.total ?? 0, checklistCompleted: checklistByTask.get(task.id)?.completed ?? 0 }; }) });
+  return Response.json({ tasks: await hydrateTaskRows(context, rows, cyclicState) });
 }
 
 export async function POST(request: Request) {
