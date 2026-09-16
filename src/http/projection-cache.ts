@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { normalizeIncludeClosed } from '../db/work-status-filter';
 
 type Snapshot = { status: number; headers: [string, string][]; body: Uint8Array };
 type Entry = { value: Snapshot; expiresAt: number };
@@ -16,6 +17,11 @@ export function normalizedCachePath(rawUrl: string): string | null {
   const url = new URL(rawUrl, 'https://taskando.internal');
   const path = url.pathname.replace(/\/$/, '') || '/';
   if (!cachedPaths.has(path) && !containerPath.test(path)) return null;
+  const includeClosed = normalizeIncludeClosed(url.searchParams.getAll('includeClosed'));
+  if (!includeClosed.error) {
+    url.searchParams.delete('includeClosed');
+    if (includeClosed.filter.canonical) url.searchParams.set('includeClosed', includeClosed.filter.canonical);
+  }
   // Stable sorting preserves the order of repeated parameters, whose first value may be significant.
   const entries = [...url.searchParams.entries()].sort(([a], [b]) => a.localeCompare(b));
   const query = new URLSearchParams(entries).toString();

@@ -7,10 +7,13 @@ import { createTask } from "./shared";
 import { getEffectiveCyclicQueueState } from "../../../db/cyclic";
 import { hydrateTaskRows } from "../../../db/task-view";
 import { selectInBatches } from "../../../db/batched-query";
+import { parseWorkStatusFilter, workStatusCondition } from "../../../db/work-status-filter";
 
-export async function GET() {
+export async function GET(request: Request) {
   const context = await ensurePersonalContext();
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
+  const parsed = parseWorkStatusFilter(request);
+  if (parsed.error) return Response.json({ error: parsed.error }, { status: 400 });
   await refreshDependencyReleases(context);
   const cyclicState = await getEffectiveCyclicQueueState(context.db, context.space.id);
   // Keep one useful row per recurring series in "Minhas tarefas". Older
@@ -38,9 +41,8 @@ export async function GET() {
     )
   )`;
   const cyclicVisibility = or(ne(tasks.taskType, "cyclic"), eq(tasks.relevance, cyclicState.releasedLevel));
-  // Keep ineligible work out of the result set. The UI still receives all
-  // eligible statuses so its Open/Completed/All tabs remain instant, but
-  // blocked task and phase dependencies never cross the database boundary.
+  // Keep dependency-ineligible work out of the result set. Closed statuses
+  // are selected independently by includeClosed above.
   const dependencyVisibility = sql`(
     NOT EXISTS (
       SELECT 1
@@ -51,14 +53,19 @@ export async function GET() {
         AND blocked_task_edge.successor_type = 'task'
         AND blocked_task_edge.successor_id = ${tasks.id}
         AND predecessor_task.deleted_at IS NULL
-        AND predecessor_task.status NOT IN ('completed', 'cancelled')
-        AND NOT (
-          (predecessor_task.task_type = 'date'
-            AND predecessor_task.date_at IS NOT NULL
-            AND predecessor_task.date_at <= to_char(now() at time zone 'UTC', 'YYYY-MM-DD'))
-          OR (predecessor_task.task_type = 'event'
-            AND predecessor_task.end_at IS NOT NULL
-            AND predecessor_task.end_at::timestamptz <= now())
+        AND (
+          predecessor_task.status = 'archived'
+          OR (
+            predecessor_task.status NOT IN ('completed', 'cancelled')
+            AND NOT (
+              (predecessor_task.task_type = 'date'
+                AND predecessor_task.date_at IS NOT NULL
+                AND predecessor_task.date_at <= to_char(now() at time zone 'UTC', 'YYYY-MM-DD'))
+              OR (predecessor_task.task_type = 'event'
+                AND predecessor_task.end_at IS NOT NULL
+                AND predecessor_task.end_at::timestamptz <= now())
+            )
+          )
         )
     )
     AND NOT EXISTS (
@@ -76,7 +83,7 @@ export async function GET() {
         AND blocked_predecessor_phase.status NOT IN ('completed', 'cancelled')
     )
   )`;
-  const candidates = await context.db.select().from(tasks).where(and(isNull(tasks.parentTaskId), isNull(tasks.deletedAt), recurrenceVisibility, cyclicVisibility, dependencyVisibility)).orderBy(desc(tasks.createdAt));
+  const candidates = await context.db.select().from(tasks).where(and(isNull(tasks.parentTaskId), isNull(tasks.deletedAt), workStatusCondition(tasks.status, parsed.filter), recurrenceVisibility, cyclicVisibility, dependencyVisibility)).orderBy(desc(tasks.createdAt));
   const organizational = candidates.filter((task) => task.organizationId !== null && !directlyViewableTask(task, context.user.id, context.space.id));
   const organizationIds = [...new Set(organizational.map((task) => task.organizationId).filter((id): id is string => id !== null))];
   const [assignments, memberships] = await Promise.all([

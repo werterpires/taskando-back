@@ -10,6 +10,7 @@ type Context = NonNullable<Awaited<ReturnType<typeof import("./current-user").en
 
 export function isDependencyReleased(task: typeof tasks.$inferSelect, now = new Date()) {
   if (task.status === "completed" || task.status === "cancelled") return true;
+  if (task.status === "archived") return false;
   if (task.taskType === "date") return isDateMarkerReleased(task.dateAt, now);
   if (task.taskType === "event") return isEventReleased(task.endAt, now);
   return false;

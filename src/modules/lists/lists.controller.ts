@@ -20,6 +20,8 @@ export class ListTaskController {
 @Controller("api/lists/:id/tasks")
 export class ListTasksController {
   constructor(private readonly service: ListsService) {}
+  @Get()
+  get(@Req() req: Request, @Res() res: Response) { return this.service.dispatch(req, res, route15.GET); }
   @Post()
   post(@Req() req: Request, @Res() res: Response) { return this.service.dispatch(req, res, route15.POST); }
 }

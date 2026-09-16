@@ -2,11 +2,14 @@ import { eq } from "drizzle-orm";
 import { canAccessFront } from "../../../db/authorization";
 import { ensurePersonalContext } from "../../../db/current-user";
 import { fronts, projects } from "../../../db/schema";
+import { parseWorkStatusFilter, workStatusCondition } from "../../../db/work-status-filter";
 
-export async function GET() {
+export async function GET(request: Request) {
   const context = await ensurePersonalContext();
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
-  const candidates = await context.db.select().from(fronts).orderBy(fronts.createdAt);
+  const parsed = parseWorkStatusFilter(request);
+  if (parsed.error) return Response.json({ error: parsed.error }, { status: 400 });
+  const candidates = await context.db.select().from(fronts).where(workStatusCondition(fronts.status, parsed.filter)).orderBy(fronts.createdAt);
   const visible = await Promise.all(candidates.map(async (front) => {
     if (!await canAccessFront(context.db, context.user.id, front.id, context.space.id, "view")) return null;
     const [project] = await context.db.select({ id: projects.id, title: projects.title }).from(projects).where(eq(projects.id, front.projectId)).limit(1);

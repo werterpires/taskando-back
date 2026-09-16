@@ -7,6 +7,7 @@ import { commitmentTimeError, dateMarkerError, eventTimeError, taskTypeError } f
 import { taskApprovalRequired } from "../../../../../db/approval";
 import { createRecurrenceSeries, firstMaterializedTask, materializeSeries, parseRecurrenceDefinition, recurrenceTaskTypes } from "../../../../../db/recurrence";
 import { dueDateForNewCyclicTask, getEffectiveCyclicQueueState, nextCyclicPosition, normalizeCyclicRelevance } from "../../../../../db/cyclic";
+import { parseWorkStatusFilter, workStatusCondition } from "../../../../../db/work-status-filter";
 
 async function orgContext(id: string) {
   const context = await ensurePersonalContext(); if (!context) return { context: null, organization: null, canView: false, canCreate: false };
@@ -15,11 +16,12 @@ async function orgContext(id: string) {
   return { context, organization, canView: await canAccessOrganization(context.db, context.user.id, context.user.email, id, "view"), canCreate: await canAccessOrganization(context.db, context.user.id, context.user.email, id, "add_children") };
 }
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; const { context, organization, canView } = await orgContext(id);
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 }); if (!organization || !canView) return Response.json({ error: "Sem acesso à organização." }, { status: 403 });
+  const parsed = parseWorkStatusFilter(request); if (parsed.error) return Response.json({ error: parsed.error }, { status: 400 });
   await getEffectiveCyclicQueueState(context.db, context.space.id);
-  const rows = await context.db.select().from(tasks).where(and(eq(tasks.organizationId, id), isNull(tasks.parentTaskId), isNull(tasks.deletedAt))).orderBy(asc(tasks.createdAt));
+  const rows = await context.db.select().from(tasks).where(and(eq(tasks.organizationId, id), isNull(tasks.parentTaskId), isNull(tasks.deletedAt), workStatusCondition(tasks.status, parsed.filter))).orderBy(asc(tasks.createdAt));
   const assignments = await context.db.select({ taskId: taskAssignees.taskId, userId: users.id, displayName: users.displayName }).from(taskAssignees).innerJoin(users, eq(taskAssignees.userId, users.id));
   const attachments = await context.db.select().from(hierarchyAttachments);
   const departmentsById = new Map((await context.db.select().from(departments).where(eq(departments.organizationId, id))).map((item) => [item.id, item.name]));

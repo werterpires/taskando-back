@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { dependencyContainer, dependencyNodeTypes, edgesForNodes, validateDependencyEdge } from "../../../db/dependencies";
+import { dependencyContainer, dependencyNodeTypes, edgesForNodes, enrichDependencyGraph, validateDependencyEdge } from "../../../db/dependencies";
 import { ensurePersonalContext } from "../../../db/current-user";
 import { dependencyEdges } from "../../../db/schema";
 import { refreshDependencyReleases } from "../../../db/dependency-release";
@@ -16,7 +16,8 @@ export async function GET(request: Request) {
   const data = await dependencyContainer(context, containerType as "process" | "phase", containerId);
   if (!data) return Response.json({ error: "Você não tem acesso a este contêiner." }, { status: 403 });
   const nodes = [...data.taskNodes, ...data.phaseNodes];
-  return Response.json({ tasks: data.taskNodes, phases: data.phaseNodes, edges: await edgesForNodes(context, nodes) });
+  const graph = enrichDependencyGraph(nodes, await edgesForNodes(context, nodes));
+  return Response.json({ tasks: graph.nodes.filter((node) => node.type === "task"), phases: graph.nodes.filter((node) => node.type === "phase"), edges: graph.edges });
 }
 
 export async function POST(request: Request) {

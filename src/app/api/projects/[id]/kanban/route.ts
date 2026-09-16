@@ -7,20 +7,23 @@ import { commitmentTimeError, dateMarkerError, eventTimeError, taskTypeError } f
 import { taskApprovalRequired } from "../../../../../db/approval";
 import { createRecurrenceSeries, firstMaterializedTask, materializeSeries, parseRecurrenceDefinition, recurrenceTaskTypes } from "../../../../../db/recurrence";
 import { dueDateForNewCyclicTask, getEffectiveCyclicQueueState, nextCyclicPosition, normalizeCyclicRelevance } from "../../../../../db/cyclic";
+import { parseWorkStatusFilter, workStatusCondition } from "../../../../../db/work-status-filter";
 
 const sizes = ["xs", "s", "m", "l", "xl"] as const;
 const priorities = ["low", "medium", "high"] as const;
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const context = await ensurePersonalContext();
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
   const { id } = await params;
   if (!await canAccessProject(context.db, context.user.id, id, context.space.id, "view")) return Response.json({ error: "Projeto não encontrado." }, { status: 404 });
+  const parsed = parseWorkStatusFilter(request);
+  if (parsed.error) return Response.json({ error: parsed.error }, { status: 400 });
   await getEffectiveCyclicQueueState(context.db, context.space.id);
   const attachments = await context.db.select({ childId: hierarchyAttachments.childId }).from(hierarchyAttachments).where(and(eq(hierarchyAttachments.parentType, "project"), eq(hierarchyAttachments.parentId, id)));
   const ids = attachments.map((item) => item.childId);
   if (!ids.length) return Response.json({ tasks: [] });
-  const candidates = await context.db.select().from(tasks).where(and(inArray(tasks.id, ids), isNull(tasks.deletedAt)));
+  const candidates = await context.db.select().from(tasks).where(and(inArray(tasks.id, ids), isNull(tasks.deletedAt), workStatusCondition(tasks.status, parsed.filter)));
   const visible = await Promise.all(candidates.map(async (task) => await canAccessTask(context.db, context.user.id, task.id, context.space.id, "view") ? task : null));
   return Response.json({ tasks: visible.filter((task): task is typeof candidates[number] => task !== null).map((task) => ({ ...task, parentName: null, tags: [], checklistTotal: 0, checklistCompleted: 0 })) });
 }

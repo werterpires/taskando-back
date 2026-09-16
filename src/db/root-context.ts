@@ -2,6 +2,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { canAccessOrganization, canAccessProcess, canAccessProduct, canAccessProject, canAccessTask, canItem } from "./authorization";
 import type { PersonalContext } from "./current-user";
 import { departments, hierarchyAttachments, organizations, processes, products, projects, tasks, teams } from "./schema";
+import { defaultWorkStatusFilter, type WorkStatusFilter, workStatusCondition } from "./work-status-filter";
 
 type RootChildType = "department" | "team" | "project" | "product" | "process" | "task";
 
@@ -23,15 +24,15 @@ function productCharacteristics(characteristicsJson: string) {
  * context. A root has no attachment row or has a fully empty attachment; a
  * partially empty attachment is malformed and deliberately omitted.
  */
-export async function rootContext(context: PersonalContext) {
+export async function rootContext(context: PersonalContext, statusFilter: WorkStatusFilter = defaultWorkStatusFilter) {
   const [organizationRows, departmentRows, teamRows, projectRows, productRows, processRows, taskRows, attachments] = await Promise.all([
     context.db.select().from(organizations).orderBy(asc(organizations.name)),
     context.db.select().from(departments).where(isNull(departments.organizationId)).orderBy(asc(departments.name)),
     context.db.select().from(teams).where(isNull(teams.organizationId)).orderBy(asc(teams.name)),
-    context.db.select().from(projects).where(isNull(projects.organizationId)).orderBy(asc(projects.createdAt)),
-    context.db.select().from(products).where(isNull(products.organizationId)).orderBy(asc(products.createdAt)),
-    context.db.select().from(processes).where(isNull(processes.organizationId)).orderBy(asc(processes.createdAt)),
-    context.db.select().from(tasks).where(and(isNull(tasks.organizationId), isNull(tasks.parentTaskId), isNull(tasks.deletedAt))).orderBy(asc(tasks.createdAt)),
+    context.db.select().from(projects).where(and(isNull(projects.organizationId), workStatusCondition(projects.status, statusFilter))).orderBy(asc(projects.createdAt)),
+    context.db.select().from(products).where(and(isNull(products.organizationId), workStatusCondition(products.status, statusFilter))).orderBy(asc(products.createdAt)),
+    context.db.select().from(processes).where(and(isNull(processes.organizationId), workStatusCondition(processes.status, statusFilter))).orderBy(asc(processes.createdAt)),
+    context.db.select().from(tasks).where(and(isNull(tasks.organizationId), isNull(tasks.parentTaskId), isNull(tasks.deletedAt), workStatusCondition(tasks.status, statusFilter))).orderBy(asc(tasks.createdAt)),
     context.db.select().from(hierarchyAttachments),
   ]);
 

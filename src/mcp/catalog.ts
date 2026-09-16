@@ -384,6 +384,7 @@ export const operationCatalog = [
   {
     "route": "/api/lists/[id]/tasks",
     "methods": [
+      "GET",
       "POST"
     ],
     "parameters": [

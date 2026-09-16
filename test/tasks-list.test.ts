@@ -36,7 +36,10 @@ test('GET /api/tasks preserves ordered visible task projection with bounded rela
                ('newer', 'space', 'viewer', 'viewer', null, 'Newer', '', 'simple', 'todo', null, '2026-09-11', '2026-09-11'),
                ('hidden', 'other-space', 'other', 'other', null, 'Hidden', '', 'simple', 'todo', null, '2026-09-12', '2026-09-12'),
                ('member', 'other-space', 'other', 'other', 'member-org', 'Member', '', 'simple', 'todo', null, '2026-09-13', '2026-09-13'),
-               ('assigned', 'other-space', 'other', 'other', 'assigned-org', 'Assigned', '', 'simple', 'todo', null, '2026-09-14', '2026-09-14');
+               ('assigned', 'other-space', 'other', 'other', 'assigned-org', 'Assigned', '', 'simple', 'todo', null, '2026-09-14', '2026-09-14'),
+               ('completed', 'space', 'viewer', 'viewer', null, 'Completed', '', 'simple', 'completed', null, '2026-09-15', '2026-09-15'),
+               ('cancelled', 'space', 'viewer', 'viewer', null, 'Cancelled', '', 'simple', 'cancelled', null, '2026-09-16', '2026-09-16'),
+               ('archived', 'space', 'viewer', 'viewer', null, 'Archived', '', 'simple', 'archived', null, '2026-09-17', '2026-09-17');
       insert into organization_members (id, organization_id, user_id, email, status, role) values ('membership', 'member-org', 'viewer', 'viewer@example.test', 'active', 'watcher');
       insert into task_assignees (task_id, user_id) values ('assigned', 'viewer');
       insert into hierarchy_attachments (id, child_type, child_id, parent_type, parent_id) values ('link', 'task', 'newer', 'project', 'project');
@@ -46,7 +49,7 @@ test('GET /api/tasks preserves ordered visible task projection with bounded rela
     `);
     const db = drizzle(client, { schema });
     const context = { db, user: { id: 'viewer' }, space: { id: 'space' } } as unknown as PersonalContext;
-    const result = await withPersonalContext(context, GET);
+    const result = await withPersonalContext(context, () => GET(new Request('https://taskando.test/api/tasks')));
     assert.equal(result.status, 200);
     const payload = await result.json() as { tasks: { id: string; parentName: string | null; tags: { name: string }[]; checklistTotal: number; checklistCompleted: number; dependencyState: string; assignees: unknown[] }[] };
     assert.deepEqual(payload.tasks.map((task) => task.id), ['assigned', 'member', 'newer', 'older']);
@@ -57,5 +60,14 @@ test('GET /api/tasks preserves ordered visible task projection with bounded rela
     assert.equal(projected.checklistCompleted, 1);
     assert.equal(projected.dependencyState, 'independent');
     assert.deepEqual(projected.assignees, []);
+
+    const selected = await withPersonalContext(context, () => GET(new Request('https://taskando.test/api/tasks?includeClosed=cancelled,completed,completed')));
+    assert.equal(selected.status, 200);
+    const selectedPayload = await selected.json() as { tasks: { id: string }[] };
+    assert.deepEqual(selectedPayload.tasks.map((task) => task.id), ['cancelled', 'completed', 'assigned', 'member', 'newer', 'older']);
+
+    const invalid = await withPersonalContext(context, () => GET(new Request('https://taskando.test/api/tasks?includeClosed=done')));
+    assert.equal(invalid.status, 400);
+    assert.match((await invalid.json() as { error: string }).error, /includeClosed inválido/);
   } finally { await client.close(); }
 });

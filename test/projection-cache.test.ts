@@ -29,6 +29,18 @@ test('cache isolates users, normalizes query order and returns independent snaps
   assert.equal(calls, 2);
 });
 
+test('cache isolates includeClosed variants and canonicalizes duplicate statuses', async () => {
+  const subject = cache(); let calls = 0;
+  const load = async () => response({ value: ++calls });
+  assert.equal((await body(await subject.read('u', '/api/tasks', load)) as { value: number }).value, 1);
+  assert.equal((await body(await subject.read('u', '/api/tasks?includeClosed=completed', load)) as { value: number }).value, 2);
+  assert.equal((await body(await subject.read('u', '/api/tasks?includeClosed=cancelled', load)) as { value: number }).value, 3);
+  assert.equal((await body(await subject.read('u', '/api/tasks?includeClosed=completed,completed', load)) as { value: number }).value, 2);
+  assert.equal(normalizedCachePath('/api/tasks?includeClosed=archived,completed&includeClosed=completed'), '/api/tasks?includeClosed=completed%2Carchived');
+  subject.invalidate();
+  assert.equal((await body(await subject.read('u', '/api/tasks?includeClosed=completed', load)) as { value: number }).value, 4);
+});
+
 test('cache expires by TTL and evicts least recently used entry', async () => {
   const subject = cache(2);
   const original = Date.now;

@@ -1,20 +1,23 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { canAccessFront, canAccessProject } from "../../../../../db/authorization";
 import { recordAuditEvent } from "../../../../../db/audit";
 import { ensurePersonalContext } from "../../../../../db/current-user";
 import { fronts, hierarchyAttachments, itemRoleAssignments, projects } from "../../../../../db/schema";
 import { statusAfterApprovalConfiguration } from "../../../../../db/approval";
+import { parseWorkStatusFilter, workStatusCondition } from "../../../../../db/work-status-filter";
 
 const statuses = ["planned", "todo", "in_progress", "awaiting_approval", "completed", "cancelled", "archived"] as const;
 const sizes = ["xs", "s", "m", "l", "xl"] as const;
 const priorities = ["low", "medium", "high"] as const;
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const context = await ensurePersonalContext();
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
   const { id } = await params;
   if (!await canAccessProject(context.db, context.user.id, id, context.space.id, "view")) return Response.json({ error: "Projeto não encontrado." }, { status: 404 });
-  const candidates = await context.db.select().from(fronts).where(eq(fronts.projectId, id));
+  const parsed = parseWorkStatusFilter(request);
+  if (parsed.error) return Response.json({ error: parsed.error }, { status: 400 });
+  const candidates = await context.db.select().from(fronts).where(and(eq(fronts.projectId, id), workStatusCondition(fronts.status, parsed.filter)));
   const visible = await Promise.all(candidates.map(async (front) => await canAccessFront(context.db, context.user.id, front.id, context.space.id, "view") ? front : null));
   return Response.json({ fronts: visible.filter((front): front is typeof candidates[number] => front !== null) });
 }

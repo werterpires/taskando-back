@@ -27,9 +27,23 @@ Em produção, configure `SSL_CA_PATH` com a CA do PostgreSQL. Para provedores q
 
 O frontend encaminha `/api` para esta API, que escuta em `127.0.0.1:3000`. Não há cadastro público: o usuário inicial vem da seed e qualquer usuário autenticado pode criar outra conta, informando a senha inicial. Cada usuário pode trocar a própria senha na tela de configurações. As senhas são armazenadas como hashes `scrypt` com salt individual. As variáveis OAuth do Google são opcionais e ficam reservadas para a retomada futura desse provedor.
 
+## Coleções e estados encerrados
+
+As coleções de trabalho ocultam `completed`, `cancelled` e `archived` por padrão. O parâmetro `includeClosed` inclui somente os estados encerrados solicitados; ele aceita valores separados por vírgula ou parâmetros repetidos, remove duplicatas e normaliza a ordem para `completed,cancelled,archived`. Um valor desconhecido retorna HTTP 400.
+
+Esse contrato vale para as coleções de tarefas, conteúdo de listas, contextos, matriz de prioridade, projetos, frentes, produtos, processos e fases, inclusive os endpoints aninhados de subtarefas, Kanban e contêineres. Consultas de detalhe, lixeira, exportação, fila cíclica e a projeção de dependências mantêm seus contratos próprios. `GET /api/lists/:id/tasks` também está disponível no catálogo MCP e aplica as mesmas verificações de acesso e o mesmo filtro.
+
+## Projeção de dependências
+
+`GET /api/dependencies?containerType=process|phase&containerId=...` devolve somente nós visíveis ao usuário e as arestas entre esses nós. Tarefas e fases incluem `dependencyState` (`independent`, `blocked` ou `released`), `dependencyBlockers` e `canConnect`; cada aresta inclui `canRemove`. Concluídos e cancelados liberam seus sucessores, enquanto arquivados não liberam.
+
+A API continua sendo responsável por autorizar mutações, impedir ciclos e exigir que as ligações tenham o mesmo tipo e escopo: fases do mesmo processo ou tarefas diretas do mesmo processo/fase. As capacidades da projeção servem para montar a interface, não substituem essa validação.
+
 ## Cache de leituras
 
 O backend mantém um cache privado, em memória por processo, para `GET /api/tasks`, `/api/priority-matrix`, `/api/context`, `/api/task-containers/:parentType/:parentId` e `/api/work-progress/:parentType/:parentId`. A chave inclui o usuário autenticado e a URL com parâmetros de consulta normalizados. Os padrões são `TASKANDO_CACHE_ENABLED=true`, `TASKANDO_CACHE_TTL_SECONDS=600` e `TASKANDO_CACHE_MAX_ENTRIES=128` (LRU). Defina `TASKANDO_CACHE_ENABLED=false` para desligá-lo.
+
+Nas rotas em cache que aceitam `includeClosed`, combinações semanticamente equivalentes usam a mesma variante canônica, enquanto seleções diferentes permanecem isoladas.
 
 O cabeçalho `X-Taskando-Cache` indica `MISS`, `HIT` ou `BYPASS`; `Cache-Control: no-store` continua impedindo cache no cliente. Respostas diferentes de HTTP 200 não são armazenadas. Mutações HTTP ou MCP bem-sucedidas que afetam tarefas, hierarquia, permissões ou progresso invalidam as entradas; operações de leitura e alterações sem efeito nessas projeções não invalidam. A invalidação é por processo e, portanto, instâncias diferentes não compartilham entradas nem sinais de invalidação. Para observar dados imediatamente após mutações feitas fora desta API ou em outra instância, desabilite o cache ou use uma camada de invalidação compartilhada.
 
@@ -47,6 +61,7 @@ O importador preserva IDs, executa tudo em uma transação, converte inteiros SQ
 
 ```bash
 npm run build
+npm run typecheck
 npm test
 ```
 

@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { rootContext } from "../src/db/root-context";
 import type { PersonalContext } from "../src/db/current-user";
 import * as schema from "../src/db/schema";
+import { normalizeIncludeClosed } from "../src/db/work-status-filter";
 
 const tableDefinitions = `
   create table users (id text, email text, display_name text, created_at text, updated_at text);
@@ -69,6 +70,7 @@ test("a raiz global classifica anexações e só expõe itens autorizados", asyn
   await insert(client, "projects", item("project-role", { owner_user_id: "other", author_user_id: "other" }));
   await insert(client, "projects", item("project-denied", { personal_space_id: "other-space", owner_user_id: "other", author_user_id: "other" }));
   await insert(client, "projects", item("project-in-organization", { organization_id: "organization-member" }));
+  await insert(client, "projects", item("project-completed", { status: "completed" }));
   await attach("project-role-assignment", "project", "project-role", null, null);
   await insert(client, "item_role_assignments", { id: "project-role-assignment", item_type: "project", item_id: "project-role", user_id: viewer.id, role: "watcher", created_at: now });
   await insert(client, "products", { ...item("product-owner"), characteristics_json: '["feature"]' });
@@ -100,6 +102,9 @@ test("a raiz global classifica anexações e só expõe itens autorizados", asyn
   assert.deepEqual(ids(result.processes), ["process-owner"]);
   assert.deepEqual(ids(result.tasks), ["task-owner", "task-author", "task-role", "task-null"]);
   assert.equal(result.canCreate, false);
+
+  const includingCompleted = await rootContext({ db, user: viewer, space } as unknown as PersonalContext, normalizeIncludeClosed(["completed"]).filter);
+  assert.deepEqual(ids(includingCompleted.projects), ["project-owner", "project-author", "project-role", "project-completed"]);
 
   await client.close();
 });

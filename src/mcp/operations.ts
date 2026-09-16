@@ -106,6 +106,7 @@ export const operations = [
   { operation: "GET /api/lists", method: "GET", path: "/api/lists", params: [], handler: route30.GET as Handler },
   { operation: "POST /api/lists", method: "POST", path: "/api/lists", params: [], handler: route30.POST as Handler },
   { operation: "DELETE /api/lists/[id]", method: "DELETE", path: "/api/lists/[id]", params: ["id"], handler: route31.DELETE as Handler },
+  { operation: "GET /api/lists/[id]/tasks", method: "GET", path: "/api/lists/[id]/tasks", params: ["id"], handler: route32.GET as Handler },
   { operation: "POST /api/lists/[id]/tasks", method: "POST", path: "/api/lists/[id]/tasks", params: ["id"], handler: route32.POST as Handler },
   { operation: "DELETE /api/lists/[id]/tasks/[taskId]", method: "DELETE", path: "/api/lists/[id]/tasks/[taskId]", params: ["id", "taskId"], handler: route33.DELETE as Handler },
   { operation: "GET /api/reminders", method: "GET", path: "/api/reminders", params: [], handler: route34.GET as Handler },

@@ -6,6 +6,7 @@ import { parentNamesByChild } from "../../../db/parent-labels";
 import { departments, hierarchyAttachments, itemRoleAssignments, organizations, projects, teams } from "../../../db/schema";
 import { validateAttachment } from "../../../db/hierarchy";
 import { statusAfterApprovalConfiguration } from "../../../db/approval";
+import { parseWorkStatusFilter, workStatusCondition } from "../../../db/work-status-filter";
 
 const statuses = ["planned", "todo", "in_progress", "awaiting_approval", "completed", "cancelled", "archived"] as const;
 const sizes = ["xs", "s", "m", "l", "xl"] as const;
@@ -24,10 +25,12 @@ async function targetFor(context: NonNullable<Awaited<ReturnType<typeof ensurePe
   return { organizationId: parent.organizationId, allowed };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const context = await ensurePersonalContext();
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
-  const candidates = await context.db.select().from(projects).orderBy(asc(projects.createdAt));
+  const parsed = parseWorkStatusFilter(request);
+  if (parsed.error) return Response.json({ error: parsed.error }, { status: 400 });
+  const candidates = await context.db.select().from(projects).where(workStatusCondition(projects.status, parsed.filter)).orderBy(asc(projects.createdAt));
   const visible = await Promise.all(candidates.map(async (project) => await canAccessProject(context.db, context.user.id, project.id, context.space.id, "view") ? project : null));
   const attachments = await context.db.select().from(hierarchyAttachments);
   const parentNames = await parentNamesByChild(context.db, attachments);

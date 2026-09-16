@@ -5,6 +5,7 @@ import { ensurePersonalContext } from "../../../db/current-user";
 import { validateAttachment } from "../../../db/hierarchy";
 import { parentNamesByChild } from "../../../db/parent-labels";
 import { departments, fronts, hierarchyAttachments, itemRoleAssignments, products, projects, teams } from "../../../db/schema";
+import { parseWorkStatusFilter, workStatusCondition } from "../../../db/work-status-filter";
 
 const statuses = ["planned", "todo", "in_progress", "awaiting_approval", "completed", "cancelled", "archived"] as const;
 const sizes = ["xs", "s", "m", "l", "xl"] as const;
@@ -33,10 +34,12 @@ async function targetFor(context: Context, parentType: ParentType, parentId: str
   return { organizationId: parent?.organizationId ?? null, allowed };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const context = await ensurePersonalContext();
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
-  const candidates = await context.db.select().from(products).orderBy(asc(products.createdAt));
+  const parsed = parseWorkStatusFilter(request);
+  if (parsed.error) return Response.json({ error: parsed.error }, { status: 400 });
+  const candidates = await context.db.select().from(products).where(workStatusCondition(products.status, parsed.filter)).orderBy(asc(products.createdAt));
   const visible = await Promise.all(candidates.map(async (product) => await canAccessProduct(context.db, context.user.id, product.id, context.space.id, "view") ? product : null));
   const attachments = await context.db.select().from(hierarchyAttachments);
   const names = await parentNamesByChild(context.db, attachments);

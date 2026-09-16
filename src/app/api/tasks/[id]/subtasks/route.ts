@@ -3,6 +3,7 @@ import { ensurePersonalContext } from "../../../../../db/current-user";
 import { canAccessTask } from "../../../../../db/authorization";
 import { canBeSubtask, canHaveSubtasks, commitmentFitsDueDate, commitmentTimeError, dateMarkerError, eventFitsDueDate, eventTimeError, taskTypeLabels, taskTypes, type TaskType } from "../../../../../db/task-types";
 import { taskAssignees, tasks, users } from "../../../../../db/schema";
+import { parseWorkStatusFilter, workStatusCondition } from "../../../../../db/work-status-filter";
 
 const childTypes: TaskType[] = ["simple", "commitment", "date", "event"];
 
@@ -14,12 +15,14 @@ async function loadParent(id: string) {
   return { context, parent: parent ?? null, allowed };
 }
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; const { context, parent, allowed } = await loadParent(id);
   if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
   if (!parent || !allowed) return Response.json({ error: "Você não tem acesso a esta tarefa." }, { status: 403 });
+  const parsed = parseWorkStatusFilter(request);
+  if (parsed.error) return Response.json({ error: parsed.error }, { status: 400 });
   if (!canHaveSubtasks(parent.taskType as TaskType)) return Response.json({ subtasks: [] });
-  const rows = await context.db.select().from(tasks).where(and(eq(tasks.parentTaskId, id), isNull(tasks.deletedAt))).orderBy(asc(tasks.subtaskPosition), asc(tasks.createdAt));
+  const rows = await context.db.select().from(tasks).where(and(eq(tasks.parentTaskId, id), isNull(tasks.deletedAt), workStatusCondition(tasks.status, parsed.filter))).orderBy(asc(tasks.subtaskPosition), asc(tasks.createdAt));
   const ids = rows.map((row) => row.id);
   const assignments = ids.length ? await context.db.select({ taskId: taskAssignees.taskId, userId: users.id, displayName: users.displayName }).from(taskAssignees).innerJoin(users, eq(taskAssignees.userId, users.id)).where(inArray(taskAssignees.taskId, ids)) : [];
   return Response.json({ subtasks: rows.map((row) => ({ ...row, assignees: assignments.filter((item) => item.taskId === row.id).map(({ userId, displayName }) => ({ userId, displayName })) })) });

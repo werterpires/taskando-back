@@ -5,9 +5,12 @@ import { hierarchyAttachments, taskAssignees, tasks, users } from "../../../../.
 import { taskParents, type TaskParentType } from "../../../../../db/task-types";
 import { createTask, resolveTaskParent } from "../../../tasks/shared";
 import { dependencyDisplayForTasks, refreshDependencyReleases } from "../../../../../db/dependency-release";
+import { parseWorkStatusFilter, workStatusCondition } from "../../../../../db/work-status-filter";
 
-export async function GET(_: Request, { params }: { params: Promise<{ parentType: string; parentId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ parentType: string; parentId: string }> }) {
   const context = await ensurePersonalContext(); if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
+  const parsed = parseWorkStatusFilter(request);
+  if (parsed.error) return Response.json({ error: parsed.error }, { status: 400 });
   await refreshDependencyReleases(context);
   const { parentType, parentId } = await params;
   if (!taskParents.includes(parentType as TaskParentType)) return Response.json({ error: "Contêiner inválido." }, { status: 400 });
@@ -42,7 +45,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ parentType
     .from(hierarchyAttachments)
     .where(and(eq(hierarchyAttachments.childType, "task"), eq(hierarchyAttachments.parentType, parentType as TaskParentType), eq(hierarchyAttachments.parentId, parentId)));
   const scope = target.organizationId === null ? isNull(tasks.organizationId) : eq(tasks.organizationId, target.organizationId);
-  const rows = await context.db.select().from(tasks).where(and(scope, isNull(tasks.parentTaskId), isNull(tasks.deletedAt), inArray(tasks.id, attachedTaskIds), recurrenceVisibility)).orderBy(asc(tasks.createdAt));
+  const rows = await context.db.select().from(tasks).where(and(scope, isNull(tasks.parentTaskId), isNull(tasks.deletedAt), inArray(tasks.id, attachedTaskIds), workStatusCondition(tasks.status, parsed.filter), recurrenceVisibility)).orderBy(asc(tasks.createdAt));
   const visible = await Promise.all(rows.map(async (task) => await canAccessTask(context.db, context.user.id, task.id, context.space.id, "view") ? task : null));
   const visibleTasks = visible.filter((item): item is typeof rows[number] => item !== null);
   const taskIds = visibleTasks.map((task) => task.id);
