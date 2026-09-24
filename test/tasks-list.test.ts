@@ -21,6 +21,9 @@ test('GET /api/tasks preserves ordered visible task projection with bounded rela
       create table task_assignees (task_id text, user_id text, created_at text);
       create table item_role_assignments (id text, item_type text, item_id text, user_id text, role text, created_at text);
       create table organization_members (id text, organization_id text, user_id text, email text, status text, role text, created_at text, updated_at text);
+      create table organizations (id text, name text);
+      create table departments (id text, name text);
+      create table teams (id text, name text);
       create table projects (id text, title text);
       create table phases (id text, title text, status text);
       create table tags (id text, personal_space_id text, name text, created_at text);
@@ -30,6 +33,9 @@ test('GET /api/tasks preserves ordered visible task projection with bounded rela
     await client.exec(`
       insert into users values ('viewer', 'Viewer');
       insert into personal_spaces values ('space');
+      insert into organizations values ('organization', 'Edubazu');
+      insert into departments values ('department', 'Desenvolvimento de software');
+      insert into teams values ('team', 'Produto');
       insert into projects values ('project', 'Project');
       insert into tasks (id, personal_space_id, author_user_id, owner_user_id, organization_id, title, description, task_type, status, deleted_at, created_at, updated_at)
         values ('older', 'space', 'viewer', 'viewer', null, 'Older', '', 'simple', 'todo', null, '2026-09-10', '2026-09-10'),
@@ -42,7 +48,11 @@ test('GET /api/tasks preserves ordered visible task projection with bounded rela
                ('archived', 'space', 'viewer', 'viewer', null, 'Archived', '', 'simple', 'archived', null, '2026-09-17', '2026-09-17');
       insert into organization_members (id, organization_id, user_id, email, status, role) values ('membership', 'member-org', 'viewer', 'viewer@example.test', 'active', 'watcher');
       insert into task_assignees (task_id, user_id) values ('assigned', 'viewer');
-      insert into hierarchy_attachments (id, child_type, child_id, parent_type, parent_id) values ('link', 'task', 'newer', 'project', 'project');
+      insert into hierarchy_attachments (id, child_type, child_id, parent_type, parent_id) values
+        ('task-link', 'task', 'newer', 'project', 'project'),
+        ('project-link', 'project', 'project', 'team', 'team'),
+        ('team-link', 'team', 'team', 'department', 'department'),
+        ('department-link', 'department', 'department', 'organization', 'organization');
       insert into tags values ('tag', 'space', 'Visible', ''), ('foreign-tag', 'other-space', 'Foreign', '');
       insert into task_tags values ('newer', 'tag'), ('newer', 'foreign-tag');
       insert into checklist_items values ('check', 'newer', true);
@@ -51,10 +61,17 @@ test('GET /api/tasks preserves ordered visible task projection with bounded rela
     const context = { db, user: { id: 'viewer' }, space: { id: 'space' } } as unknown as PersonalContext;
     const result = await withPersonalContext(context, () => GET(new Request('https://taskando.test/api/tasks')));
     assert.equal(result.status, 200);
-    const payload = await result.json() as { tasks: { id: string; parentName: string | null; tags: { name: string }[]; checklistTotal: number; checklistCompleted: number; dependencyState: string; assignees: unknown[] }[] };
+    const payload = await result.json() as { tasks: { id: string; parentName: string | null; parentChain: { type: string; id: string; name: string }[]; tags: { name: string }[]; checklistTotal: number; checklistCompleted: number; dependencyState: string; assignees: unknown[] }[] };
     assert.deepEqual(payload.tasks.map((task) => task.id), ['assigned', 'member', 'newer', 'older']);
     const projected = payload.tasks[2];
     assert.equal(projected.parentName, 'Project');
+    assert.deepEqual(projected.parentChain, [
+      { type: 'organization', id: 'organization', name: 'Edubazu' },
+      { type: 'department', id: 'department', name: 'Desenvolvimento de software' },
+      { type: 'team', id: 'team', name: 'Produto' },
+      { type: 'project', id: 'project', name: 'Project' },
+    ]);
+    assert.deepEqual(payload.tasks[3].parentChain, []);
     assert.deepEqual(projected.tags.map((tag) => tag.name), ['Visible']);
     assert.equal(projected.checklistTotal, 1);
     assert.equal(projected.checklistCompleted, 1);

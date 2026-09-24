@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { ensurePersonalContext } from "./current-user";
 import { getEffectiveCyclicQueueState } from "./cyclic";
 import { dependencyDisplayForTasks } from "./dependency-release";
-import { parentNamesByChild } from "./parent-labels";
+import { parentChainsByChild } from "./parent-labels";
 import { checklistItems, hierarchyAttachments, recurrenceOccurrences, recurrenceSeries, tags, taskAssignees, taskTags, tasks, users } from "./schema";
 import { selectInBatches } from "./batched-query";
 
@@ -24,7 +24,7 @@ export async function hydrateTaskRows(context: PersonalContext, rows: TaskRow[],
     selectInBatches(taskIds, (ids) => context.db.select({ taskId: checklistItems.taskId, completed: checklistItems.completed }).from(checklistItems).innerJoin(tasks, eq(checklistItems.taskId, tasks.id)).where(and(inArray(checklistItems.taskId, ids), eq(tasks.personalSpaceId, context.space.id)))),
     cyclicStateOverride ?? getEffectiveCyclicQueueState(context.db, context.space.id),
   ]);
-  const parentNames = await parentNamesByChild(context.db, attachments);
+  const parentChains = await parentChainsByChild(context.db, attachments);
   const recurrenceByTask = new Map(recurrenceRows.map((item) => [item.taskId, item]));
   const assigneesByTask = new Map<string, { userId: string; displayName: string }[]>();
   for (const assignment of assignmentRows) assigneesByTask.set(assignment.taskId, [...(assigneesByTask.get(assignment.taskId) ?? []), { userId: assignment.userId, displayName: assignment.displayName }]);
@@ -41,8 +41,9 @@ export async function hydrateTaskRows(context: PersonalContext, rows: TaskRow[],
     const assignees = assigneesByTask.get(task.id) ?? [];
     const dependency = dependencyStates.get(task.id) ?? { state: "independent" as const, blockers: [] };
     const recurrence = recurrenceByTask.get(task.id);
+    const parentChain = parentChains.get(`task:${task.id}`) ?? [];
     let recurrenceTimeZone: string | null = null;
     if (recurrence) { try { recurrenceTimeZone = (JSON.parse(recurrence.definitionJson) as { timeZone?: string }).timeZone ?? null; } catch { recurrenceTimeZone = null; } }
-    return { ...task, parentType: attachment?.parentType ?? null, parentId: attachment?.parentId ?? null, parentName: parentNames.get(`task:${task.id}`) ?? null, ownerName: ownerNames.get(task.ownerUserId ?? "") ?? null, assignees, dependencyState: dependency.state, dependencyBlockers: dependency.blockers, responsibleAvailability: assignees.length ? "assigned" as const : "unassigned" as const, cyclicReleasedLevel: cyclicState.releasedLevel, cyclicReleased: task.taskType === "cyclic" ? (task.relevance ?? 3) === cyclicState.releasedLevel : undefined, recurrenceOccurrenceId: recurrence?.occurrenceId ?? null, recurrenceSeriesId: recurrence?.seriesId ?? null, recurrenceSeriesActive: recurrence?.seriesActive ?? null, recurrenceTimeZone, tags: tagsByTask.get(task.id) ?? [], checklistTotal: checklistByTask.get(task.id)?.total ?? 0, checklistCompleted: checklistByTask.get(task.id)?.completed ?? 0 };
+    return { ...task, parentType: attachment?.parentType ?? null, parentId: attachment?.parentId ?? null, parentName: parentChain[parentChain.length - 1]?.name ?? null, parentChain, ownerName: ownerNames.get(task.ownerUserId ?? "") ?? null, assignees, dependencyState: dependency.state, dependencyBlockers: dependency.blockers, responsibleAvailability: assignees.length ? "assigned" as const : "unassigned" as const, cyclicReleasedLevel: cyclicState.releasedLevel, cyclicReleased: task.taskType === "cyclic" ? (task.relevance ?? 3) === cyclicState.releasedLevel : undefined, recurrenceOccurrenceId: recurrence?.occurrenceId ?? null, recurrenceSeriesId: recurrence?.seriesId ?? null, recurrenceSeriesActive: recurrence?.seriesActive ?? null, recurrenceTimeZone, tags: tagsByTask.get(task.id) ?? [], checklistTotal: checklistByTask.get(task.id)?.total ?? 0, checklistCompleted: checklistByTask.get(task.id)?.completed ?? 0 };
   });
 }
