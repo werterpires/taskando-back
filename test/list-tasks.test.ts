@@ -27,7 +27,7 @@ test("GET /api/lists/:id/tasks aplica includeClosed sem expor listas de outro es
       create table checklist_items (id text, task_id text, completed boolean);
       insert into users values ('viewer', 'Viewer');
       insert into personal_spaces values ('space'), ('other-space');
-      insert into task_lists values ('list', 'space', 'viewer', 'List', '', ''), ('foreign-list', 'other-space', 'viewer', 'Foreign', '', '');
+      insert into task_lists values ('list', 'space', 'viewer', 'List', '', ''), ('empty-list', 'space', 'viewer', 'Empty', '', ''), ('foreign-list', 'other-space', 'viewer', 'Foreign', '', '');
       insert into tasks (id, personal_space_id, author_user_id, owner_user_id, organization_id, title, description, task_type, status, deleted_at, created_at, updated_at)
         values ('open', 'space', 'viewer', 'viewer', null, 'Open', '', 'simple', 'todo', null, '2026-09-16', '2026-09-16'),
                ('completed', 'space', 'viewer', 'viewer', null, 'Completed', '', 'simple', 'completed', null, '2026-09-17', '2026-09-17');
@@ -39,7 +39,15 @@ test("GET /api/lists/:id/tasks aplica includeClosed sem expor listas de outro es
 
     const open = await invoke("https://taskando.test/api/lists/list/tasks");
     assert.equal(open.status, 200);
-    assert.deepEqual((await open.json() as { tasks: { id: string }[] }).tasks.map((task) => task.id), ["open"]);
+    const openData = await open.json() as { list: { id: string; name: string; personalSpaceId: string }; tasks: { id: string }[] };
+    assert.deepEqual(openData.tasks.map((task) => task.id), ["open"]);
+    assert.deepEqual({ id: openData.list.id, name: openData.list.name, personalSpaceId: openData.list.personalSpaceId }, { id: "list", name: "List", personalSpaceId: "space" });
+
+    const empty = await invoke("https://taskando.test/api/lists/empty-list/tasks", "empty-list");
+    assert.equal(empty.status, 200);
+    const emptyData = await empty.json() as { list: { id: string; name: string; personalSpaceId: string }; tasks: { id: string }[] };
+    assert.deepEqual(emptyData.tasks, []);
+    assert.deepEqual({ id: emptyData.list.id, name: emptyData.list.name, personalSpaceId: emptyData.list.personalSpaceId }, { id: "empty-list", name: "Empty", personalSpaceId: "space" });
 
     const completed = await invoke("https://taskando.test/api/lists/list/tasks?includeClosed=completed");
     assert.deepEqual((await completed.json() as { tasks: { id: string }[] }).tasks.map((task) => task.id), ["completed", "open"]);
