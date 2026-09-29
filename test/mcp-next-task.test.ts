@@ -41,7 +41,7 @@ test("taskando_next_task is a read-only MCP tool", () => {
   assert.deepEqual(tool.inputSchema.required, ["type", "id"]);
 });
 
-test("selects an earliest descendant at random and returns its parent and visible direct dependents", async () => {
+test("skips blocked tasks, selects an earliest descendant at random, and returns its parent and visible direct dependents", async () => {
   const client = new PGlite();
   await client.exec(tableDefinitions);
   const db = drizzle(client, { schema });
@@ -65,6 +65,8 @@ test("selects an earliest descendant at random and returns its parent and visibl
   await attach("process-phase", "phase", "phase", "process", "process");
 
   await insert(client, "tasks", task("a-earliest", { due_date: "2026-09-12" }));
+  await insert(client, "tasks", task("blocked-earlier", { due_date: "2026-09-10" }));
+  await insert(client, "tasks", task("blocker", { due_date: "2026-10-10" }));
   await insert(client, "tasks", task("parent", { due_date: "2026-10-01" }));
   await insert(client, "tasks", task("b-earliest", { due_date: "2026-09-12", parent_task_id: "parent" }));
   await insert(client, "tasks", task("later", { due_date: "2026-09-20" }));
@@ -73,7 +75,8 @@ test("selects an earliest descendant at random and returns its parent and visibl
   await insert(client, "tasks", task("deleted-earlier", { due_date: "2026-09-01", deleted_at: now }));
   await insert(client, "tasks", task("dependent-visible"));
   await insert(client, "tasks", task("dependent-hidden", { personal_space_id: "other-space", owner_user_id: "other", author_user_id: "other" }));
-  for (const id of ["a-earliest", "parent", "later", "no-date", "completed-earlier", "deleted-earlier", "dependent-visible"]) await attach(`phase-${id}`, "task", id, "phase", "phase");
+  for (const id of ["a-earliest", "blocked-earlier", "blocker", "parent", "later", "no-date", "completed-earlier", "deleted-earlier", "dependent-visible"]) await attach(`phase-${id}`, "task", id, "phase", "phase");
+  await insert(client, "dependency_edges", { id: "edge-blocked", predecessor_type: "task", predecessor_id: "blocker", successor_type: "task", successor_id: "blocked-earlier", created_at: now });
   await insert(client, "dependency_edges", { id: "edge-visible", predecessor_type: "task", predecessor_id: "a-earliest", successor_type: "task", successor_id: "dependent-visible", created_at: now });
   await insert(client, "dependency_edges", { id: "edge-hidden", predecessor_type: "task", predecessor_id: "a-earliest", successor_type: "task", successor_id: "dependent-hidden", created_at: now });
 

@@ -138,7 +138,7 @@ async function descendantTaskIds(context: PersonalContext, rootType: ItemType, r
   return [...taskIds];
 }
 
-async function visibleTasksAtEarliestDate(context: PersonalContext, candidates: (typeof tasks.$inferSelect)[]) {
+async function visibleUnblockedTasksAtEarliestDate(context: PersonalContext, candidates: (typeof tasks.$inferSelect)[]) {
   const orderedDates = [...new Set(candidates.map((task) => task.dueDate))].sort((left, right) => {
     if (left === null) return right === null ? 0 : 1;
     if (right === null) return -1;
@@ -148,7 +148,9 @@ async function visibleTasksAtEarliestDate(context: PersonalContext, candidates: 
     const dated = candidates.filter((task) => task.dueDate === dueDate);
     const permissions = await Promise.all(dated.map((task) => auth.canAccessTask(context.db, context.user.id, task.id, context.space.id, "view")));
     const visible = dated.filter((_, index) => permissions[index]);
-    if (visible.length) return visible;
+    const readiness = await Promise.all(visible.map((task) => taskReadiness(task)));
+    const unblocked = visible.filter((_, index) => readiness[index]!.blockers.length === 0);
+    if (unblocked.length) return unblocked;
   }
   return [];
 }
@@ -177,7 +179,7 @@ export async function nextTaskForItem(args: Record<string, unknown>, random = Ma
   await getEffectiveCyclicQueueState(context.db, context.space.id);
 
   const ids = await descendantTaskIds(context, type, id);
-  if (!ids.length) return { scope: { type, id }, task: null, ordering: "Menor dueDate; datas nulas por último; empate aleatório." };
+  if (!ids.length) return { scope: { type, id }, task: null, ordering: "Apenas tarefas não bloqueadas; menor dueDate; datas nulas por último; empate aleatório." };
   const candidates = [] as (typeof tasks.$inferSelect)[];
   for (let index = 0; index < ids.length; index += 50) {
     candidates.push(...await context.db.select().from(tasks).where(and(
@@ -186,8 +188,8 @@ export async function nextTaskForItem(args: Record<string, unknown>, random = Ma
       isNull(tasks.deletedAt),
     )));
   }
-  const tied = await visibleTasksAtEarliestDate(context, candidates);
-  if (!tied.length) return { scope: { type, id }, task: null, ordering: "Menor dueDate; datas nulas por último; empate aleatório." };
+  const tied = await visibleUnblockedTasksAtEarliestDate(context, candidates);
+  if (!tied.length) return { scope: { type, id }, task: null, ordering: "Apenas tarefas não bloqueadas; menor dueDate; datas nulas por último; empate aleatório." };
   tied.sort((left, right) => left.id.localeCompare(right.id));
   const selected = tied[Math.min(tied.length - 1, Math.max(0, Math.floor(random() * tied.length)))]!;
   const successorRows = await context.db.select({ id: dependencyEdges.successorId }).from(dependencyEdges).where(and(
@@ -203,6 +205,6 @@ export async function nextTaskForItem(args: Record<string, unknown>, random = Ma
     scope: { type, id },
     task: { ...selected, parent, directDependentTaskIds },
     tieCount: tied.length,
-    ordering: "Menor dueDate; datas nulas por último; empate aleatório.",
+    ordering: "Apenas tarefas não bloqueadas; menor dueDate; datas nulas por último; empate aleatório.",
   };
 }
