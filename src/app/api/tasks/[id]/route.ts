@@ -1,14 +1,53 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { recordAuditEvent } from "../../../../db/audit";
 import { ensurePersonalContext } from "../../../../db/current-user";
-import { auditEvents, checklistItems, recurrenceOccurrences, tags, taskTags, tasks } from "../../../../db/schema";
+import { auditEvents, checklistItems, hierarchyAttachments, recurrenceOccurrences, tags, taskTags, tasks } from "../../../../db/schema";
 import { canTransitionWorkState, workStateLabel, workStates, type WorkState } from "../../../../db/task-state";
 import { canAccessTask } from "../../../../db/authorization";
 import { statusAfterApprovalConfiguration, taskApprovalRequired } from "../../../../db/approval";
 import { recordApprovalRequested } from "../../../../db/approval-audit";
 import { commitmentTimeError, dateMarkerError, eventTimeError } from "../../../../db/task-types";
-import { dependencyBlockers, dependencySuccessors, refreshDependencyReleases, refreshPhaseCompletionForTask, refreshProcessCompletionForItem } from "../../../../db/dependency-release";
+import { dependencyBlockers, dependencyDisplayForTasks, dependencySuccessors, refreshDependencyReleases, refreshPhaseCompletionForTask, refreshProcessCompletionForItem } from "../../../../db/dependency-release";
 import { completeCyclicTask, getEffectiveCyclicQueueState, normalizeCyclicRelevance } from "../../../../db/cyclic";
+
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const context = await ensurePersonalContext();
+  if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
+  const { id } = await params;
+  if (!(await canAccessTask(context.db, context.user.id, id, context.space.id, "view"))) {
+    return Response.json({ error: "Tarefa não encontrada." }, { status: 404 });
+  }
+  const [task] = await context.db.select().from(tasks).where(and(eq(tasks.id, id), isNull(tasks.deletedAt))).limit(1);
+  if (!task) return Response.json({ error: "Tarefa não encontrada." }, { status: 404 });
+
+  const [attachment] = await context.db
+    .select({ parentType: hierarchyAttachments.parentType, parentId: hierarchyAttachments.parentId })
+    .from(hierarchyAttachments)
+    .where(and(eq(hierarchyAttachments.childType, "task"), eq(hierarchyAttachments.childId, id)))
+    .limit(1);
+
+  const assignedTags = await context.db
+    .select({ id: tags.id, name: tags.name })
+    .from(taskTags)
+    .innerJoin(tags, eq(taskTags.tagId, tags.id))
+    .where(eq(taskTags.taskId, id));
+  const checklist = await context.db.select({ completed: checklistItems.completed }).from(checklistItems).where(eq(checklistItems.taskId, id));
+  const dependency = (await dependencyDisplayForTasks(context, [id])).get(id) ?? { state: "independent" as const, blockers: [] };
+
+  return Response.json({
+    task: {
+      ...task,
+      parentType: task.parentTaskId ? "task" : attachment?.parentType ?? null,
+      parentId: task.parentTaskId ?? attachment?.parentId ?? null,
+      tags: assignedTags,
+      checklistTotal: checklist.length,
+      checklistCompleted: checklist.filter((item) => item.completed).length,
+      dependencyState: dependency.state,
+      dependencyBlockers: dependency.blockers,
+    },
+  });
+}
+
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const context = await ensurePersonalContext();

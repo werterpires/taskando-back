@@ -67,6 +67,8 @@ export class TaskCommentsController {
 @Controller("api/tasks/:id")
 export class TaskController {
   constructor(private readonly service: TasksService) {}
+  @Get()
+  get(@Req() req: Request, @Res() res: Response) { return this.service.dispatch(req, res, route65.GET); }
   @Patch()
   patch(@Req() req: Request, @Res() res: Response) { return this.service.dispatch(req, res, route65.PATCH); }
   @Delete()
