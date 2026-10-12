@@ -6,6 +6,7 @@ import { taskParents, type TaskParentType } from "../../../../../db/task-types";
 import { createTask, resolveTaskParent } from "../../../tasks/shared";
 import { dependencyDisplayForTasks, refreshDependencyReleases } from "../../../../../db/dependency-release";
 import { parseWorkStatusFilter, workStatusCondition } from "../../../../../db/work-status-filter";
+import { parentChainForItem } from "../../../../../db/parent-labels";
 
 export async function GET(request: Request, { params }: { params: Promise<{ parentType: string; parentId: string }> }) {
   const context = await ensurePersonalContext(); if (!context) return Response.json({ error: "Não autenticado." }, { status: 401 });
@@ -52,8 +53,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ pare
   const assignmentRows = taskIds.length ? await context.db.select({ taskId: taskAssignees.taskId, userId: users.id, displayName: users.displayName }).from(taskAssignees).innerJoin(users, eq(taskAssignees.userId, users.id)).where(inArray(taskAssignees.taskId, taskIds)) : [];
   const assigneesByTask = new Map<string, { userId: string; displayName: string }[]>();
   for (const assignment of assignmentRows) assigneesByTask.set(assignment.taskId, [...(assigneesByTask.get(assignment.taskId) ?? []), { userId: assignment.userId, displayName: assignment.displayName }]);
-  const dependencyStates = await dependencyDisplayForTasks(context, taskIds);
-  return Response.json({ tasks: visibleTasks.map((task) => { const assignees = assigneesByTask.get(task.id) ?? []; const dependency = dependencyStates.get(task.id) ?? { state: "independent" as const, blockers: [] }; return { ...task, parentName: target.name, tags: [], checklistTotal: 0, checklistCompleted: 0, assignees, dependencyState: dependency.state, dependencyBlockers: dependency.blockers, responsibleAvailability: assignees.length ? "assigned" as const : "unassigned" as const }; }) });
+  const [dependencyStates, containerChain] = await Promise.all([
+    dependencyDisplayForTasks(context, taskIds),
+    parentChainForItem(context.db, parentType, parentId),
+  ]);
+  const taskParentChain = [...containerChain, { type: parentType as any, id: parentId, name: target.name }];
+  return Response.json({ tasks: visibleTasks.map((task) => { const assignees = assigneesByTask.get(task.id) ?? []; const dependency = dependencyStates.get(task.id) ?? { state: "independent" as const, blockers: [] }; return { ...task, parentName: target.name, parentChain: taskParentChain, tags: [], checklistTotal: 0, checklistCompleted: 0, assignees, dependencyState: dependency.state, dependencyBlockers: dependency.blockers, responsibleAvailability: assignees.length ? "assigned" as const : "unassigned" as const }; }) });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ parentType: string; parentId: string }> }) {

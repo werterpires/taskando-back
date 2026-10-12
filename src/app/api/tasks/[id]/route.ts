@@ -9,6 +9,7 @@ import { recordApprovalRequested } from "../../../../db/approval-audit";
 import { commitmentTimeError, dateMarkerError, eventTimeError } from "../../../../db/task-types";
 import { dependencyBlockers, dependencyDisplayForTasks, dependencySuccessors, refreshDependencyReleases, refreshPhaseCompletionForTask, refreshProcessCompletionForItem } from "../../../../db/dependency-release";
 import { completeCyclicTask, getEffectiveCyclicQueueState, normalizeCyclicRelevance } from "../../../../db/cyclic";
+import { parentChainForItem } from "../../../../db/parent-labels";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const context = await ensurePersonalContext();
@@ -33,6 +34,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     .where(eq(taskTags.taskId, id));
   const checklist = await context.db.select({ completed: checklistItems.completed }).from(checklistItems).where(eq(checklistItems.taskId, id));
   const dependency = (await dependencyDisplayForTasks(context, [id])).get(id) ?? { state: "independent" as const, blockers: [] };
+  const parentChain = await parentChainForItem(context.db, "task", id);
 
   return Response.json({
     task: {
@@ -44,6 +46,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       checklistCompleted: checklist.filter((item) => item.completed).length,
       dependencyState: dependency.state,
       dependencyBlockers: dependency.blockers,
+      parentChain,
     },
   });
 }

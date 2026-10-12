@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { canAccessOrganization, canAccessProcess, canAccessProduct, canAccessProject, canAccessTask, canItem } from "../../../db/authorization";
 import { ensurePersonalContext } from "../../../db/current-user";
-import { parentNamesByChild } from "../../../db/parent-labels";
+import { parentChainForItem, parentChainsByChild, parentNamesByChild } from "../../../db/parent-labels";
 import { rootContext } from "../../../db/root-context";
 import { departments, hierarchyAttachments, itemRoleAssignments, organizationMembers, organizations, processes, products, projects, taskAssignees, tasks, teams } from "../../../db/schema";
 import { includesWorkStatus, parseWorkStatusFilter } from "../../../db/work-status-filter";
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const [organization] = await context.db.select().from(organizations).where(eq(organizations.id, parentId)).limit(1);
     if (!organization) return Response.json({ error: "Sem acesso a esta organização." }, { status: 403 });
     organizationId = parentId; canCreate = await canAccessOrganization(context.db, context.user.id, context.user.email, parentId, "add_children");
-    scope = { ...organization, kind: "organization" };
+    scope = { ...organization, kind: "organization", parentChain: [] };
   }
   if (parentType === "department" || parentType === "team") {
     if (!parentId) return Response.json({ error: "Item de contexto inválido." }, { status: 400 });
@@ -39,7 +39,8 @@ export async function GET(request: Request) {
     const allowed = parent.ownerUserId === context.user.id || await canItem(context.db, context.user.id, parentType, parentId, "view") || (organizationId !== null && await canAccessOrganization(context.db, context.user.id, context.user.email, organizationId, "view"));
     if (!allowed) return Response.json({ error: "Sem acesso a este item." }, { status: 403 });
     canCreate = parent.ownerUserId === context.user.id || await canItem(context.db, context.user.id, parentType, parentId, "add_children") || (organizationId !== null && await canAccessOrganization(context.db, context.user.id, context.user.email, organizationId, "add_children"));
-    scope = { ...parent, kind: parentType };
+    const scopeParentChain = await parentChainForItem(context.db, parentType, parentId);
+    scope = { ...parent, kind: parentType, parentChain: scopeParentChain };
   }
 
   if (parentType === "personal") {
@@ -60,8 +61,11 @@ export async function GET(request: Request) {
     const assigned = new Set(assignedRows.map((row) => row.taskId));
     const participatingOrganizations = new Set([...memberRows.map((row) => row.organizationId), ...organizationRows.map((row) => row.id)]);
     const attachmentByChild = new Map(attachments.map((item) => [`${item.childType}:${item.childId}`, item]));
-    const parentNames = await parentNamesByChild(context.db, attachments);
-    const withParent = <T extends { id: string }>(type: ItemType, item: T) => { const attachment = attachmentByChild.get(`${type}:${item.id}`); return { ...item, parentType: attachment?.parentType ?? null, parentId: attachment?.parentId ?? null, parentName: parentNames.get(`${type}:${item.id}`) ?? null }; };
+    const [parentNames, parentChains] = await Promise.all([
+      parentNamesByChild(context.db, attachments),
+      parentChainsByChild(context.db, attachments),
+    ]);
+    const withParent = <T extends { id: string }>(type: ItemType, item: T) => { const attachment = attachmentByChild.get(`${type}:${item.id}`); return { ...item, parentType: attachment?.parentType ?? null, parentId: attachment?.parentId ?? null, parentName: parentNames.get(`${type}:${item.id}`) ?? null, parentChain: parentChains.get(`${type}:${item.id}`) ?? [] }; };
     const participates = (type: ItemType, item: { id: string; ownerUserId?: string | null; authorUserId?: string | null }) => roles.has(`${type}:${item.id}`) || item.ownerUserId === context.user.id || item.authorUserId === context.user.id || (type === "task" && assigned.has(item.id));
     const directDepartmentIds = new Set(allDepartments.filter((item) => participates("department", item)).map((item) => item.id));
     const directTeamIds = new Set(allTeams.filter((item) => participates("team", item)).map((item) => item.id));
@@ -100,8 +104,11 @@ export async function GET(request: Request) {
   ]);
   const attachmentFor = (type: ItemType, id: string) => attachments.find((item) => item.childType === type && item.childId === id);
   const direct = (type: ItemType, id: string) => { const attachment = attachmentFor(type, id); return attachment?.parentType === parentType && attachment.parentId === parentId; };
-  const parentNames = await parentNamesByChild(context.db, attachments);
-  const withParent = <T extends { id: string }>(type: ItemType, item: T) => { const attachment = attachmentFor(type, item.id); return { ...item, parentType: attachment?.parentType ?? null, parentId: attachment?.parentId ?? null, parentName: parentNames.get(`${type}:${item.id}`) ?? null }; };
+  const [parentNames, parentChains] = await Promise.all([
+    parentNamesByChild(context.db, attachments),
+    parentChainsByChild(context.db, attachments),
+  ]);
+  const withParent = <T extends { id: string }>(type: ItemType, item: T) => { const attachment = attachmentFor(type, item.id); return { ...item, parentType: attachment?.parentType ?? null, parentId: attachment?.parentId ?? null, parentName: parentNames.get(`${type}:${item.id}`) ?? null, parentChain: parentChains.get(`${type}:${item.id}`) ?? [] }; };
   const visibleProjects = await Promise.all(projectRows.filter((item) => includesWorkStatus(parsed.filter, item.status) && direct("project", item.id)).map(async (item) => await canAccessProject(context.db, context.user.id, item.id, context.space.id, "view") ? item : null));
   const visibleProducts = await Promise.all(productRows.filter((item) => includesWorkStatus(parsed.filter, item.status) && direct("product", item.id)).map(async (item) => await canAccessProduct(context.db, context.user.id, item.id, context.space.id, "view") ? item : null));
   const visibleProcesses = await Promise.all(processRows.filter((item) => includesWorkStatus(parsed.filter, item.status) && direct("process", item.id)).map(async (item) => await canAccessProcess(context.db, context.user.id, item.id, context.space.id, "view") ? item : null));

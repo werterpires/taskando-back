@@ -7,6 +7,7 @@ import { statusAfterApprovalConfiguration } from "../../../../db/approval";
 import { recordApprovalRequested } from "../../../../db/approval-audit";
 import { phaseDependencySuccessors, refreshProcessCompletionForItem } from "../../../../db/dependency-release";
 import type { WorkState } from "../../../../db/task-state";
+import { parentChainForItem } from "../../../../db/parent-labels";
 
 const statuses = ["planned", "todo", "in_progress", "awaiting_approval", "completed", "cancelled", "archived"] as const;
 const sizes = ["xs", "s", "m", "l", "xl"] as const;
@@ -19,7 +20,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const { id } = await params;
   const [phase] = await context.db.select().from(phases).where(eq(phases.id, id)).limit(1);
   if (!phase || !await canAccessPhase(context.db, context.user.id, id, context.space.id)) return Response.json({ error: "Fase não encontrada." }, { status: 404 });
-  return Response.json({ phase: response(phase) });
+  const parentChain = await parentChainForItem(context.db, "phase", id);
+  return Response.json({ phase: { ...response(phase), parentChain } });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
